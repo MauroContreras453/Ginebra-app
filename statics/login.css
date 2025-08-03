@@ -1,0 +1,130 @@
+/* Reset y base */
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: 'Segoe UI', sans-serif;
+    background-color: #00264d; /* Color de fondo principal */
+    color: #ffffff; /* Color de texto base */
+}
+ 
+/* Barra de navegación */
+.navbar-custom {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 80px;
+    background-color: #fff;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    z-index: 1000;
+    padding-top: 10px; /* Ajuste para el contenido debajo de la barra fija */
+    padding-bottom: 10px; /* Ajuste para el contenido debajo de la barra fija */
+}
+
+.logo h1 {
+    margin: 0;
+    font-weight: bold;
+    font-size: 3rem;
+    color: #00264d;
+}
+
+.logo p {
+    margin-top: 1px;
+    font-size: 0.8rem;
+    color: #005fa3;
+}
+
+.nav-links a {
+    text-decoration: none;
+    color: #00264d;
+    font-weight: 500;
+    padding: 10px 12px;
+    transition: color 0.3s ease;
+}
+
+.nav-links a:hover {
+    color: #005fa3;
+}
+
+/* Botón Iniciar sesión */
+.btn-login {
+    background-color: #ffffff; /* Color de fondo para el botón de login */
+    color: #fff;
+    font-weight: bold;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 5px;
+}
+
+/* Estilos generales para el contenido principal */
+main {
+    padding-top: 80px; /* Para compensar la altura de la barra de navegación fija */
+}
+
+/* Tarjeta del formulario */
+.card {
+    background-color: #004080; /* Fondo de tarjeta */
+    border: none;
+    text-align: center;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Agrega sombra */
+}
+.card-title {
+    color: #ffffff; /* Asegura que el título de la tarjeta sea blanco */
+}
+
+/* Etiquetas del formulario */
+.form-label {
+    color: #ffffff;
+}
+
+/* Campos de entrada */
+.form-control {
+    background-color: #002244;
+    border: 1px solid #ff6600;
+    color: #ffffff;
+}
+.form-control:focus {
+    background-color: #002244;
+    color: #ffffff;
+    border-color: #ff6600;
+    box-shadow: 0 0 0 0.2rem rgba(255, 102, 0, 0.5);
+}
+
+/* Botón personalizado */
+.btn-custom {
+    background-color: #ff6600;
+    color: #ffffff;
+    border: none;
+}
+.btn-custom:hover,
+.btn-custom:focus {
+    background-color: #e65c00;
+    color: #ffffff;
+}
+
+/* Alerta de error */
+.alert-danger {
+    background-color: #cc3300;
+    border-color: #cc3300;
+    color: #ffffff;
+}
+
+/* Texto adicional (como enlaces) */
+p, a {
+    color: #ffffff;
+}
+
+/* Footer */
+footer {
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    width: 100vw;
+    background-color: #002244;
+    color: #fff;
+    text-align: center;
+    padding: 1rem 0;
+    z-index: 100;
+    margin-top: 0;
+}

@@ -1,0 +1,135 @@
+/* Reset y base */
+body, html {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: 'Segoe UI', sans-serif;
+}
+ 
+/* Barra de navegación */
+.navbar-custom {
+    height: 80px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background-color: white;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    z-index: 1000;
+}
+
+.logo h1 {
+    font-weight: bold;
+    color: #00264d;
+    font-size: 3rem;
+    margin: 0;
+}
+.logo p {
+    font-size: 0.8rem;
+    color: #005fa3;
+    margin-top: 1px;
+}
+
+
+.nav-links a {
+    text-decoration: none;
+    color: #00264d;
+    font-weight: 500;
+    padding: 10px 12px;
+    transition: color 0.3s ease;
+}
+.nav-links a:hover {
+    color: #005fa3;
+}
+
+/* Botón Iniciar sesión */
+.btn-login {
+    color: #fff;
+    font-weight: bold;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 5px;
+}
+
+
+/* Imagen de fondo */
+.inicio-container {
+    background-image: url('../../image/Ginebra.jpg');
+    background-size: cover;
+    background-position: center;
+    position: relative;
+    height: 100vh;
+}
+
+/* Capa oscura encima de la imagen */
+.overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+    background-color: rgba(0, 38, 77, 0.6); /* azul oscuro translúcido */
+    z-index: 1;
+}
+
+/* Caja de servicios */
+.services-box {
+    position: absolute;
+    top: 55%;
+    left: 75%;
+    transform: translateY(-50%);
+    background-color: rgba(255,255,255,0.9);
+    padding: 30px;
+    border-radius: 8px;
+    z-index: 2;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+
+.services-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.services-list li {
+    font-size: 1.1rem;
+    color: #00264d;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+}
+.services-list i {
+    font-size: 1.3rem;
+    color: #005fa3;
+    margin-right: 10px;
+}
+
+.descripcion-section {
+    background-color: #ffffff;
+    color: #00264d;
+    padding: 60px 20px;
+    font-size: 1.1rem;
+    line-height: 1.8;
+}
+.descripcion-section h2 {
+    color: #00264d;
+    font-weight: bold;
+}
+.descripcion-section p {
+    max-width: 800px;
+    margin: 0 auto 20px auto;
+    text-align: justify;
+}
+
+/* Footer */
+footer {
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    width: 100vw;
+    background-color: #002244;
+    color: #fff;
+    text-align: center;
+    padding: 1rem 0;
+    z-index: 100;
+    margin-top: 0;
+}

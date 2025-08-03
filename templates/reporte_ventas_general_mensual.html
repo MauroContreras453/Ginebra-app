@@ -1,0 +1,255 @@
+
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Panel de Administración</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="../statics/reporte.css" />
+</head>
+
+<body>
+
+  <!-- NAVBAR PRINCIPAL -->
+  <nav class="navbar-custom d-flex justify-content-between align-items-center px-4">
+    <div></div>
+    <div class="nav-links d-flex gap-2 align-items-center">
+
+      <a href="admin_panel.html" class="btn btn-custom">Home</a>
+
+      <!-- EMPRESAS -->
+      <div class="dropdown">
+        <button class="btn btn-custom dropdown-toggle" type="button" data-bs-toggle="dropdown">Empresas</button>
+        <ul class="dropdown-menu">
+          <li><a class="dropdown-item" href="nueva_empresa.html">Crear Empresa</a></li>
+          <li><a class="dropdown-item" href="empresas_asociadas.html">Empresas Asociadas</a></li>
+          <li><a class="dropdown-item" href="contabilidad_empresas.html">Contabilidad Empresas</a></li>
+        </ul>
+      </div>
+
+      <!-- GESTIÓN -->
+      <div class="dropdown">
+        <button class="btn btn-custom dropdown-toggle" type="button" data-bs-toggle="dropdown"
+          {% if not empresa_seleccionada or empresa_seleccionada.tiene_gestion != 'si' %}disabled{% endif %}>
+          Gestión
+        </button>
+        <ul class="dropdown-menu">
+          <li class="dropdown-submenu">
+            <a class="dropdown-item dropdown-toggle" href="#">Reservas</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="admin_reservas.html">Ver reservas</a></li>
+              <li><a class="dropdown-item" href="reservas.html">Crear reservas</a></li>
+            </ul>
+          </li>
+          <li class="dropdown-submenu">
+            <a class="dropdown-item dropdown-toggle" href="#">Finanzas empresa</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="estados_de_venta.html">Estados de venta</a></li>
+              <li><a class="dropdown-item" href="liquidaciones.html">Liquidaciones</a></li>
+              <li><a class="dropdown-item" href="balance_mensual.html">Balance mensual</a></li>
+            </ul>
+          </li>
+          <li class="dropdown-submenu">
+            <a class="dropdown-item dropdown-toggle" href="#">Reportes a Gerencia</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="reporte_detalle_ventas.html">Detalle Ventas</a></li>
+              <li><a class="dropdown-item" href="reporte_ventas_general_mensual.html">Ventas General</a></li>
+              <li><a class="dropdown-item" href="ranking_ejecutivos.html">Ranking Ejecutivos</a></li>
+            </ul>
+          </li>
+          <li class="dropdown-submenu">
+            <a class="dropdown-item dropdown-toggle" href="#">Ejecutivo/Cliente</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="control_gestion_clientes.html">Gestión Cliente</a></li>
+              <li><a class="dropdown-item" href="panel_comisiones.html">Panel Comisiones</a></li>
+              <li><a class="dropdown-item" href="marketing.html">Marketing</a></li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+
+      <!-- PRODUCTO -->
+      <div class="dropdown">
+        <button class="btn btn-custom dropdown-toggle" type="button" data-bs-toggle="dropdown"
+          {% if not empresa_seleccionada or empresa_seleccionada.tiene_producto != 'si' %}disabled{% endif %}>
+          Producto
+        </button>
+        <ul class="dropdown-menu">
+          <li><a class="dropdown-item" href="productos.html">Productos</a></li>
+          <li><a class="dropdown-item" href="contratos.html">Contratos</a></li>
+          <li><a class="dropdown-item" href="catalogos.html">Catálogo</a></li>
+        </ul>
+      </div>
+
+      <a href="login.html" class="btn btn-custom">Cerrar sesión</a>
+    </div>
+  </nav>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <div class="container" style="margin-top: 120px;">
+    
+
+
+
+
+
+
+
+
+
+
+  <body>
+    <div class="container">
+      <h2 class="text-center">
+        Reporte Ventas General Mensual - {{ selected_mes_str }}
+      </h2>
+
+      <div class="mb-3">
+        <a href="{{ url_for('admin_panel') }}" class="btn btn-outline-light">
+          ← Volver al Panel de Administración
+        </a>
+      </div>
+
+      <form method="get" class="mb-4">
+        <div class="row g-3 align-items-end">
+          <div class="col-md-6">
+            <label for="mes" class="form-label">Seleccionar Mes</label>
+            <select class="form-select" id="mes" name="mes">
+              {% for month_year in meses_anteriores %}
+              <option value="{{ month_year }}" {% if selected_mes_str == month_year %}selected{% endif %}>{{ month_year }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12 text-center">
+            <button type="submit" class="btn btn-custom">Aplicar Filtro</button>
+          </div>
+        </div>
+      </form>
+
+      <div class="row g-4 mb-4">
+        <div class="col-md-4">
+          <div class="card text-center">
+            <div class="card-header">Ganancia Total del Mes</div>
+            <div class="card-body">
+              <h3 class="card-title">${{ "%.2f"|format(ganancia_total_mes) }}</h3>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card text-center">
+            <div class="card-header">Comisión Total Ejecutivos</div>
+            <div class="card-body">
+              <h3 class="card-title">${{ "%.2f"|format(comision_total_ejecutivos) }}</h3>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card text-center">
+            <div class="card-header">Comisión Total Agencia</div>
+            <div class="card-body">
+              <h3 class="card-title">${{ "%.2f"|format(comision_total_agencia) }}</h3>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gráficos circulares -->
+      <div class="mt-5">
+        <h4 class="text-center mb-4">Resumen de Estados del Mes</h4>
+        <div class="row g-4 justify-content-center">
+          <div class="col-md-4 text-center">
+            <h5 class="mb-3">Pagos Realizados</h5>
+            <canvas id="graficoEstadoPago" style="max-width: 300px; max-height: 300px;"></canvas>
+          </div>
+          <div class="col-md-4 text-center">
+            <h5 class="mb-3">Ventas Cobradas</h5>
+            <canvas id="graficoVentaCobrada" style="max-width: 300px; max-height: 300px;"></canvas>
+          </div>
+          <div class="col-md-4 text-center">
+            <h5 class="mb-3">Ventas Emitidas</h5>
+            <canvas id="graficoVentaEmitida" style="max-width: 300px; max-height: 300px;"></canvas>
+          </div>
+        </div>
+      </div>
+
+    </div> 
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+      // Definir los arrays como variables JS
+      var datosEstadoPagoArr = {{ datos_estado_pago|tojson }};
+      var datosVentaCobradaArr = {{ datos_venta_cobrada|tojson }};
+      var datosVentaEmitidaArr = {{ datos_venta_emitida|tojson }};
+
+      const datosEstadoPago = {
+        labels: ['Pagado', 'No Pagado'],
+        datasets: [{
+          data: datosEstadoPagoArr,
+          backgroundColor: ['#28a745', '#dc3545'] // Verde, Rojo
+        }]
+      };
+      const datosVentaCobrada = {
+        labels: ['Cobrada', 'No Cobrada'],
+        datasets: [{
+          data: datosVentaCobradaArr,
+          backgroundColor: ['#28a745', '#dc3545'] // Verde, Rojo
+        }]
+      };
+      const datosVentaEmitida = {
+        labels: ['Emitida', 'No Emitida'],
+        datasets: [{
+          data: datosVentaEmitidaArr,
+          backgroundColor: ['#28a745', '#dc3545'] // Verde, Rojo
+        }]
+      };
+      // Renderizar los gráficos
+      new Chart(document.getElementById('graficoEstadoPago'), {
+        type: 'pie',
+        data: datosEstadoPago,
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'bottom', labels: { color: '#fff', font: { size: 14 } } },
+            title: { display: false }
+          }
+        }
+      });
+      new Chart(document.getElementById('graficoVentaCobrada'), {
+        type: 'pie',
+        data: datosVentaCobrada,
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'bottom', labels: { color: '#fff', font: { size: 14 } } },
+            title: { display: false }
+          }
+        }
+      });
+      new Chart(document.getElementById('graficoVentaEmitida'), {
+        type: 'pie',
+        data: datosVentaEmitida,
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'bottom', labels: { color: '#fff', font: { size: 14 } } },
+            title: { display: false }
+          }
+        }
+      });
+    </script>
+  
+
+    
+  <!-- FOOTER -->
+  <footer class="mt-5 text-center">
+    <small>© 2025 Mi Aplicación de Reservas</small>
+  </footer>
+
+  <!-- BOOTSTRAP JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+
+

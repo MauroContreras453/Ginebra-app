@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <title>Ginebra - Gestión</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="../../statics/Pagina_principal/Contacto.css" />
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+    <!-- Barra de navegación -->
+    <nav class="navbar-custom d-flex justify-content-between align-items-center px-4">
+        <div class="logo">
+            <h1 class="m-0">
+                <a href="home.html" style="color: inherit; text-decoration: none;">Ginebra</a>
+            </h1>
+            <p class="subtitulo">Gestión de productos y ejecutivos</p>
+        </div>
+        <div class="nav-links d-flex gap-3">
+            <a href="home.html" class="nav-btn">Home</a>
+            <a href="nuestra_empresa.html" class="nav-btn">Nuestra Empresa</a>
+            <a href="servicios.html" class="nav-btn">Servicios</a>
+            <a href="clientes.html" class="nav-btn">Clientes</a>
+            <a href="Soporte.html" class="nav-btn">Soporte</a>
+            <a href="contacto.html" class="nav-btn">Contacto</a>
+            <a href="../login.html" class="btn btn-login">Iniciar sesión</a>
+        </div>
+    </nav>
+
+
+<!-- Contenedor para el título centrado -->
+<div class="title-container">
+    <h2>Contacto</h2>
+</div>
+
+<!-- Contenedor principal para las dos columnas -->
+<div class="main-contact-area">
+    
+    <!-- Columna izquierda para el formulario (60%) -->
+    <div class="form-column">
+        <p>Si tienes alguna duda o quieres ponerte en contacto con nosotros, completa el siguiente formulario:</p>
+        
+        <form class="contact-form" action="/send-message" method="POST">
+            <label for="name">Nombre completo</label>
+            <input type="text" id="name" name="name" placeholder="Tu nombre" required />
+
+            <label for="email">Correo electrónico</label>
+            <input type="email" id="email" name="email" placeholder="ejemplo@correo.com" required />
+
+            <!-- NUEVO CAMPO: Teléfono -->
+            <label for="phone">Teléfono</label>
+            <input type="tel" id="phone" name="phone" placeholder="Tu número de teléfono" />
+
+            <!-- NUEVO CAMPO: Motivo -->
+            <label for="reason">Motivo de contacto</label>
+            <select id="reason" name="reason" required>
+                <option value="" disabled selected>Selecciona un motivo...</option>
+                <option value="consulta">Consulta General</option>
+                <option value="soporte">Soporte Técnico</option>
+                <option value="ventas">Información de Ventas</option>
+                <option value="otro">Otro</option>
+            </select>
+
+            <label for="message">Mensaje</label>
+            <textarea id="message" name="message" rows="5" placeholder="Escribe tu mensaje aquí..." required></textarea>
+
+            <button type="submit" class="btn-submit">Enviar</button>
+        </form>
+    </div>
+
+    <!-- Columna derecha para la imagen (40%) -->
+    <div class="image-column">
+        
+    </div>
+
+</div>
+
+    
+
+    <footer>
+        <small>© 2025 Mi Aplicación de Gestion</small>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

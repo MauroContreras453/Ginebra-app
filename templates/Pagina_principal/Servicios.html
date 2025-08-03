@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <title>Ginebra - Gestión</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="../../statics/Pagina_principal/Servicios.css" />
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+    <!-- Barra de navegación -->
+    <nav class="navbar-custom d-flex justify-content-between align-items-center px-4">
+        <div class="logo">
+            <h1 class="m-0">
+                <a href="home.html" style="color: inherit; text-decoration: none;">Ginebra</a>
+            </h1>
+            <p class="subtitulo">Gestión de productos y ejecutivos</p>
+        </div>
+        <div class="nav-links d-flex gap-3">
+            <a href="home.html" class="nav-btn">Home</a>
+            <a href="nuestra_empresa.html" class="nav-btn">Nuestra Empresa</a>
+            <a href="servicios.html" class="nav-btn">Servicios</a>
+            <a href="clientes.html" class="nav-btn">Clientes</a>
+            <a href="Soporte.html" class="nav-btn">Soporte</a>
+            <a href="contacto.html" class="nav-btn">Contacto</a>
+            <a href="../login.html" class="btn btn-login">Iniciar sesión</a>
+        </div>
+    </nav>
+
+<div class="services-container">
+    <!-- Caja izquierda para la lista de servicios -->
+    <div class="service-list-box">
+        <ul class="services-list" id="servicesList">
+            <li data-id="1"><i class="fas fa-tools"></i> Gestión de Productos</li>
+            <li data-id="2"><i class="fas fa-headset"></i> Control de Ejecutivos</li>
+            <li data-id="3"><i class="fas fa-desktop"></i> Reportes de Ventas</li>
+            <li data-id="4"><i class="fas fa-cogs"></i> Asignación de Metas</li>
+            <li data-id="5"><i class="fas fa-network-wired"></i> Soporte Personalizado</li>
+            <li data-id="6"><i class="fas fa-hard-hat"></i> Historial y Backups</li>
+        </ul>
+    </div>
+    <!-- Caja derecha para el contenido dinámico -->
+    <div class="service-content-box" id="leftBox"> <!-- Mantenemos el ID para que el JavaScript funcione -->
+        <h2>Bienvenido a Ginebra</h2>
+        <p>Seleccione un servicio para ver detalles aquí.</p>
+    </div>
+</div>
+ 
+<!-- Imagen de Servicios -->
+<div class="services-image-wrapper">
+    <img src="../../image/Servicios.jpg" alt="Servicios" class="services-image">
+</div>
+
+<script>
+const servicesContent = {
+    1: {
+    title: "Gestión de Productos",
+    text: "Ayudamos a planificar, desarrollar, lanzar y gestionar sus productos a lo largo de todo su ciclo de vida.",
+    bgColor: "#007acc"
+    },
+    2: {
+    title: "Control de Ejecutivos",
+    text: "Revisamos el estado de las ventas y el rendimiento de los ejecutivos para optimizar las estrategias.",
+    bgColor: "#005fa3"
+    },
+    3: {
+    title: "Reportes de Ventas",
+    text: "Realizamos reportes detallados sobre el rendimiento de ventas para tomar decisiones informadas.",
+    bgColor: "#004a80"
+    },
+    4: {
+    title: "Asignación de Metas",
+    text: "Luego de obtener los reportes, asignamos metas a los ejecutivos para mejorar el rendimiento.",
+    bgColor: "#006bb3"
+    },
+    5: {
+    title: "Soporte Personalizado",
+    text: "Si el cliente lo amerita ofrecemos soporte personalizado para resolver problemas técnicos.",
+    bgColor: "#0080d6"
+    },
+    6: {
+    title: "Historial y Backups",
+    text: "Ofrecemos un historial de cambios y backups para asegurar la integridad de los datos.",
+    bgColor: "#005fa3"
+    }
+};
+
+const leftBox = document.getElementById("leftBox");
+const servicesList = document.getElementById("servicesList");
+const items = servicesList.querySelectorAll("li");
+
+items.forEach(item => {
+    item.addEventListener("click", () => {
+    items.forEach(i => i.classList.remove("active"));
+    item.classList.add("active");
+    
+    const id = item.getAttribute("data-id");
+    const content = servicesContent[id];
+    
+    leftBox.innerHTML = `
+        <h2>${content.title}</h2>
+        <p>${content.text}</p>
+    `;
+    leftBox.style.backgroundColor = content.bgColor;
+    });
+});
+</script>
+
+
+
+    <footer>
+        <small>© 2025 Mi Aplicación de Gestion</small>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

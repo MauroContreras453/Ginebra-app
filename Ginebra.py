@@ -1,0 +1,1879 @@
+# File: app.py
+import os
+import io
+from datetime import datetime, timedelta
+from decimal import Decimal
+from flask import ( Flask, render_template, redirect, url_for, request, flash, send_file, send_from_directory, Response, session)
+from flask_mail import Mail, Message
+from itsdangerous import URLSafeTimedSerializer
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import ( LoginManager, UserMixin, login_user, login_required, logout_user, current_user)
+from functools import wraps
+from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
+import pandas as pd
+from flask_migrate import Migrate
+
+# =====================
+# CONFIGURACIÓN INICIAL
+# =====================
+app = Flask(__name__)
+app.secret_key = os.getenv('SECRET_KEY', 'clave_secreta_segura')
+basedir = os.path.abspath(os.path.dirname(__file__))
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///' + os.path.join(basedir, 'usuarios.db'))
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['UPLOAD_FOLDER'] = os.path.join(basedir, 'comprobantes')
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+# Configuración de Flask-Mail
+app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER')
+app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', 587))
+app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS', 'true').lower() == 'true'
+app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
+mail = Mail(app)
+
+# Configuración de itsdangerous
+serializer = URLSafeTimedSerializer(app.secret_key)
+
+# Configuración de SQLAlchemy y Flask-Migrate
+db = SQLAlchemy(app)
+migrate = Migrate(app, db)
+login_manager = LoginManager(app)
+login_manager.login_view = "login"
+
+# =====================
+# CONSTANTES
+# =====================
+ALLOWED_EXTENSIONS = {'pdf'}
+MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB
+PER_PAGE = 10 # Constante para el número de elementos por página
+GESTION_OPTIONS = ('si', 'no')
+PRODUCTOS_OPTIONS = ('si', 'no')
+ROLES = ('master', 'admin', 'controling', 'ejecutivo', 'analista')
+ESTADO_PAGO_OPTIONS = ('Pagado', 'No Pagado')
+VENTA_COBRADA_OPTIONS = ('Cobrada', 'No Cobrada')
+VENTA_EMITIDA_OPTIONS = ('Emitida', 'No Emitida')
+ESTADO_OPTIONS = ('Activo', 'Inactivo')
+
+# =====================
+# MODELOS DE BASE DE DATOS
+# =====================
+class Empresa(db.Model):
+    """Modelo para empresas registradas en el sistema."""
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(100))
+    representante = db.Column(db.String(100))
+    telefono = db.Column(db.String(20))
+    correo = db.Column(db.String(100))
+    direccion = db.Column(db.String(200))
+    razon_social = db.Column(db.String(100))    
+    tiene_gestion = db.Column(db.Enum(*GESTION_OPTIONS, name='gestion_options'), default='no')
+    tiene_productos = db.Column(db.Enum(*PRODUCTOS_OPTIONS, name='productos_options'), default='no')
+
+class SoftDeleteMixin:
+    """Mixin para implementar borrado lógico en modelos."""
+    activo = db.Column(db.Boolean, default=True)
+
+    def delete(self):
+        """Marca el registro como inactivo (borrado lógico)."""
+        self.activo = False
+
+    def restore(self):
+        """Restaura el registro marcado como inactivo."""
+        self.activo = True
+
+    def hard_delete(self):
+        """Elimina el registro de la base de datos de forma permanente."""
+        db.session.delete(self)
+        db.session.commit()
+
+    @classmethod
+    def activos(cls):
+        """Devuelve solo los registros activos."""
+        return cls.query.filter_by(activo=True)
+
+class Usuario(UserMixin, db.Model):
+    """Modelo para usuarios del sistema."""
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(150), unique=True, nullable=False, index=True)
+    password_hash = db.Column(db.String(256), nullable=False)
+    nombre = db.Column(db.String(150), index=True)
+    apellidos = db.Column(db.String(150), index=True)
+    rut = db.Column(db.String(12), unique=True, nullable=True, index=True)
+    fecha_nacimiento = db.Column(db.Date, index=True)
+    fecha_ingreso = db.Column(db.Date, index=True)
+    telefono = db.Column(db.String(20), index=True)
+    correo_personal = db.Column(db.String(150), index=True)
+    correo = db.Column(db.String(150), unique=True, nullable=False, index=True)
+    direccion = db.Column(db.String(250), index=True)
+    comision = db.Column(db.Numeric(12,2), default=Decimal('0.00'), index=True)
+    sueldo = db.Column(db.Numeric(12,2), default=Decimal('0.00'), index=True)
+    estado = db.Column(db.Enum(*ESTADO_OPTIONS, name='estado_usuario'), default='Activo')
+    rol = db.Column(db.Enum(*ROLES, name='roles'), nullable=False)
+    empresa_id = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=True)
+    empresa = db.relationship('Empresa', backref=db.backref('usuarios', lazy=True))
+
+    @property
+    def password(self):
+        """No permite leer la contraseña directamente."""
+        raise AttributeError('No se puede leer la contraseña')
+
+    @password.setter
+    def password(self, password_plain):
+        """Establece el hash de la contraseña."""
+        self.password_hash = generate_password_hash(password_plain)
+
+    def check_password(self, password_plain):
+        """Verifica la contraseña ingresada."""
+        return check_password_hash(self.password_hash, password_plain)
+
+class Reserva(db.Model):
+    """Modelo para reservas realizadas por usuarios."""
+    id = db.Column(db.Integer, primary_key=True)
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'), nullable=False)
+    fecha_viaje = db.Column(db.Date, nullable=True, index=True)
+    fecha_venta = db.Column(db.Date, nullable=True, index=True) 
+    producto = db.Column(db.String(100), index=True) 
+    modalidad_pago = db.Column(db.String(100), index=True)
+    nombre_pasajero = db.Column(db.String(100), index=True)
+    telefono_pasajero = db.Column(db.String(100), index=True)
+    mail_pasajero = db.Column(db.String(100), index=True)
+    precio_venta_total = db.Column(db.Numeric(12,2), default=Decimal('0.00'), index=True)
+    precio_venta_neto = db.Column(db.Numeric(12,2), default=Decimal('0.00'), index=True)
+    hotel_neto = db.Column(db.Numeric(12,2), default=Decimal('0.00'), index=True)
+    vuelo_neto = db.Column(db.Numeric(12,2), default=Decimal('0.00'), index=True)
+    traslado_neto = db.Column(db.Numeric(12,2), default=Decimal('0.00'), index=True)
+    seguro_neto = db.Column(db.Numeric(12,2), default=Decimal('0.00'), index=True)
+    circuito_neto = db.Column(db.Numeric(12,2), default=Decimal('0.00'), index=True)
+    crucero_neto = db.Column(db.Numeric(12,2), default=Decimal('0.00'), index=True)
+    excursion_neto = db.Column(db.Numeric(12,2), default=Decimal('0.00'), index=True)
+    paquete_neto = db.Column(db.Numeric(12,2), default=Decimal('0.00'), index=True)
+    ganancia_total =  db.Column(db.Numeric(12,2), default=Decimal('0.00'), index=True)
+    comision_ejecutivo = db.Column(db.Numeric(12,2), default=Decimal('0.00'), index=True)
+    comision_agencia = db.Column(db.Numeric(12,2), default=Decimal('0.00'), index=True)
+    bonos = db.Column(db.Numeric(12,2), default=Decimal('0.00'), index=True)
+    localizadores = db.Column(db.Text, nullable=True)
+    nombre_ejecutivo = db.Column(db.String(100), index=True)
+    correo_ejecutivo = db.Column(db.String(100), index=True)
+    destino = db.Column(db.String(100))
+    comentarios = db.Column(db.Text, nullable=True)  
+    comprobante_venta = db.Column(db.String(200))
+    comprobante_pdf = db.Column(db.LargeBinary)
+    estado_pago = db.Column(db.Enum(*ESTADO_PAGO_OPTIONS, name='estado_pago_reserva'), default='No Pagado')
+    venta_cobrada = db.Column(db.Enum(*VENTA_COBRADA_OPTIONS, name='venta_cobrada_options'), default='No Cobrada')
+    venta_emitida = db.Column(db.Enum(*VENTA_EMITIDA_OPTIONS, name='venta_emitida_options'), default='No Emitida')
+    usuario = db.relationship('Usuario', backref=db.backref('reservas', lazy=True))
+    empresa_id = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=True)
+    empresa = db.relationship('Empresa', backref=db.backref('reservas', lazy=True))
+
+class Proveedor(SoftDeleteMixin, db.Model):
+    """Modelo para productos ofrecidos por la empresa."""
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(100), nullable=False, index=True)
+    pais_ciudad = db.Column(db.String(100), nullable=True, index=True)
+    direccion = db.Column(db.String(200), nullable=True, index=True)
+    tipo_proveedor = db.Column(db.String(100), nullable=True, index=True)
+    servicio = db.Column(db.Text, nullable=True, index=True)
+    contacto_principal_nombre = db.Column(db.String(100), nullable=True, index=True)
+    contacto_principal_email = db.Column(db.String(100), nullable=True, index=True)
+    contacto_principal_telefono = db.Column(db.String(100), nullable=True, index=True)
+    condiciones_comerciales = db.Column(db.Text, nullable=True, index=True)
+    donde_opera = db.Column(db.String(100), nullable=True, index=True)
+    ultima_negociacion = db.Column(db.Date, nullable=True, index=True)
+    fecha_vigencia = db.Column(db.Date, nullable=True, index=True)
+    estado = db.Column(db.Enum(*ESTADO_OPTIONS, name='estado_proveedor'), default='Activo')
+    empresa_id = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=False)
+    empresa = db.relationship('Empresa', backref=db.backref('proveedores', lazy=True))
+
+class Contrato(SoftDeleteMixin, db.Model):
+    """Modelo para contratos asociados a proveedor."""
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(100), nullable=False, index=True)
+    descripcion = db.Column(db.Text, nullable=True, index=True)
+    fecha_inicio = db.Column(db.Date, nullable=True, index=True)
+    fecha_fin = db.Column(db.Date, nullable=True, index=True)
+    estado = db.Column(db.Enum(*ESTADO_OPTIONS, name='estado_contrato'), default='Activo')
+    condiciones = db.Column(db.Text, nullable=True, index=True)
+    comprobante_venta = db.Column(db.String(200))
+    comprobante_pdf = db.Column(db.LargeBinary)
+    proveedor_id = db.Column(db.Integer, db.ForeignKey('proveedor.id'), nullable=False)
+    proveedor = db.relationship('Proveedor', backref=db.backref('contratos', lazy=True))
+
+class Catalogo(SoftDeleteMixin, db.Model):
+    """Modelo para catálogos de proveedor."""
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(100), nullable=False, index=True)
+    descripcion = db.Column(db.Text, nullable=True, index=True)
+    fecha_inicio = db.Column(db.Date, nullable=True, index=True)
+    fecha_fin = db.Column(db.Date, nullable=True, index=True)
+    estado = db.Column(db.Enum(*ESTADO_OPTIONS, name='estado_catalogo'), default='Activo')
+    costo_base = db.Column(db.Numeric(12, 2), default=Decimal('0.00'), index=True)
+    precio_venta_sugerido = db.Column(db.Numeric(12, 2), default=Decimal('0.00'), index=True)
+    comision_estimada = db.Column(db.Numeric(12,2), default=Decimal('0.00'), index=True)
+    que_incluye = db.Column(db.Text, nullable=True, index=True)
+    comprobante_venta = db.Column(db.String(200))
+    comprobante_pdf = db.Column(db.LargeBinary)
+    proveedor_id = db.Column(db.Integer, db.ForeignKey('proveedor.id'), nullable=False)
+    proveedor = db.relationship('Proveedor', backref=db.backref('catalogos', lazy=True))
+
+class Factura(db.Model):
+    """Modelo para facturas mensuales de empresas."""
+    id = db.Column(db.Integer, primary_key=True)
+    empresa_id = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=False)
+    empresa = db.relationship('Empresa', backref=db.backref('facturas', lazy=True))
+    mes = db.Column(db.Date, nullable=True, index=True)
+    monto = db.Column(db.Numeric(12, 2), default=Decimal('0.00'), index=True)
+    estado = db.Column(db.Enum(*ESTADO_PAGO_OPTIONS, name='estado_pago_factura'), default='No Pagado')
+    fecha_pago = db.Column(db.Date, nullable=True, index=True)
+    metodo_pago = db.Column(db.String(50), nullable=True, index=True)
+    observaciones = db.Column(db.Text, nullable=True, index=True)
+
+# =====================
+# LOGIN MANAGER Y DECORADORES
+# =====================
+@login_manager.user_loader
+def load_user(user_id):
+    return Usuario.query.get(int(user_id))
+
+def rol_required(*roles):
+    def decorator(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            if current_user.rol not in roles:
+                flash('Acceso denegado.', 'danger')
+                return redirect(url_for('dashboard'))
+            return f(*args, **kwargs)
+        return wrapped
+    return decorator
+
+def empresa_tiene_gestion_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if current_user.rol not in ('admin', 'master'):
+            empresa = current_user.empresa
+            if not empresa or empresa.tiene_gestion != 'si':
+                flash('Tu empresa no tiene gestión habilitada. No puedes acceder a reservas.', 'danger')
+                return redirect(url_for('dashboard'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def empresa_tiene_productos_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if current_user.rol not in ('admin', 'master'):
+            empresa = current_user.empresa
+            if not empresa or empresa.tiene_productos != 'si':
+                flash('Tu empresa no tiene productos habilitados. No puedes acceder a productos, contratos ni catálogos.', 'danger')
+                return redirect(url_for('dashboard'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# =====================
+# FUNCIONES AUXILIARES
+# =====================
+def puede_editar_reserva(reserva):
+    return current_user.rol in ('master', 'admin', 'controling') or reserva.usuario_id == current_user.id
+
+def puede_crear_usuario(rol_actual, rol_nuevo):
+    jerarquia = ['master', 'admin', 'controling', 'ejecutivo', 'analista']
+    if rol_actual not in jerarquia or rol_nuevo not in jerarquia:
+        return False
+    if rol_actual == 'master' and rol_nuevo == 'master':
+        return False
+    if rol_actual == 'admin' and rol_nuevo in ['admin', 'master']:
+        return False
+    if rol_actual == 'controling' and rol_nuevo not in ['ejecutivo', 'analista']:
+        return False
+    if rol_actual in ['ejecutivo', 'analista']:
+        return False
+    return jerarquia.index(rol_actual) < jerarquia.index(rol_nuevo)
+
+def puede_asignar_empresa(usuario_actual, empresa_id_objetivo):
+    if usuario_actual.rol == 'controling':
+        return usuario_actual.empresa_id == empresa_id_objetivo
+    return True
+
+def crear_usuario(form, usuario_actual):
+    username = form['username'].strip()
+    rol_nuevo = form['rol'].strip()
+    empresa_id = int(form.get('empresa_id', 0)) if form.get('empresa_id') else None
+
+    if not puede_crear_usuario(usuario_actual.rol, rol_nuevo):
+        return False, "No tienes permiso para crear usuarios con ese rol."
+
+    if not puede_asignar_empresa(usuario_actual, empresa_id):
+        return False, "No puedes asignar usuarios a otra empresa."
+
+    if Usuario.query.filter_by(username=username).first():
+        return False, "El usuario ya existe."
+
+    if form.get('rut') and Usuario.query.filter_by(rut=form.get('rut').strip()).first():
+        return False, "El RUT ya está registrado."
+
+    try:
+        comision = float(form.get('comision', '0').strip())
+    except ValueError:
+        return False, "La comisión debe ser un número válido."
+
+    fecha_nacimiento = None
+    if form.get('fecha_nacimiento'):
+        try:
+            fecha_nacimiento = datetime.strptime(form['fecha_nacimiento'], '%Y-%m-%d').date()
+        except ValueError:
+            return False, "Formato de fecha inválido."
+
+    nuevo = Usuario(
+        username=username,
+        nombre=form['nombre'].strip(),
+        apellidos=form['apellidos'].strip(),
+        rut=form.get('rut', '').strip(),
+        fecha_nacimiento= fecha_nacimiento,
+        fecha_ingreso= datetime.now().date(),
+        telefono=form.get('telefono', '').strip(),
+        correo_personal=form.get('correo_personal', '').strip(),
+        correo=form['correo'].strip(),
+        direccion=form.get('direccion', '').strip(),
+        comision=comision,
+        sueldo = safe_decimal(form.get('sueldo', '0').strip()),
+        estado=form.get('estado', 'Activo').strip(),
+        rol=rol_nuevo,
+        empresa_id=empresa_id
+    )
+    nuevo.password = form['password'].strip()
+    db.session.add(nuevo)
+    db.session.commit()
+    return True, "Usuario creado correctamente."
+
+def editar_usuario_existente(usuario, form, usuario_actual):
+    rol_nuevo = form['rol'].strip()
+    empresa_id = int(form.get('empresa_id', 0))
+    if not puede_crear_usuario(usuario_actual.rol, rol_nuevo):
+        return False, "No tienes permiso para asignar ese rol."
+    if not puede_asignar_empresa(usuario_actual, empresa_id):
+        return False, "No puedes asignar usuarios a otra empresa."
+    usuario.username = form['username'].strip()
+    password = form['password'].strip()
+    if password:
+        usuario.password = password
+    usuario.nombre = form['nombre'].strip()
+    usuario.apellidos = form['apellidos'].strip()
+    usuario.rut = form.get('rut').strip()
+    usuario.fecha_nacimiento = form.get('fecha_nacimiento') or None
+    usuario.telefono = form.get('telefono', '').strip()
+    usuario.correo_personal = form.get('correo_personal', '').strip()
+    usuario.correo = form['correo'].strip()
+    usuario.direccion = form.get('direccion', '').strip()
+    usuario.comision = form['comision'].strip()
+    usuario.rol = rol_nuevo
+    usuario.estado = form.get('estado', 'Activo').strip()
+    usuario.empresa_id = empresa_id if empresa_id else None
+    db.session.commit()
+    return True, "Usuario modificado correctamente."
+
+def puede_eliminar_usuario(usuario):
+    # Nadie puede eliminar a mcontreras
+    if usuario.username == 'mcontreras':
+        return False
+
+    rol_actual = current_user.rol
+    rol_objetivo = usuario.rol
+
+    # Ejecutivos y analistas no pueden eliminar a nadie (ni siquiera a sí mismos)
+    if rol_actual in ('ejecutivo', 'analista'):
+        return False
+
+    # Controling solo puede eliminar ejecutivo o analista de su empresa
+    if rol_actual == 'controling':
+        if rol_objetivo in ('ejecutivo', 'analista') and usuario.empresa_id == current_user.empresa_id:
+            return True
+        else:
+            return False
+
+    # Si el rol actual es más "alto" que el del usuario objetivo, puede eliminarlo
+    if ROLES.index(rol_actual) < ROLES.index(rol_objetivo):
+        return True
+
+    # En todos los demás casos, no se puede eliminar
+    return False
+
+def formatear_fecha_es(fecha):
+    """Formatea una fecha datetime a 'DD de mes YYYY' en español."""
+    meses_es = [
+        "enero", "febrero", "marzo", "abril", "mayo", "junio",
+        "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
+    ]
+    if not fecha:
+        return ""
+    return f"{fecha.day} de {meses_es[fecha.month - 1]} {fecha.year}"
+
+def _get_date_range(rango_fechas_str):
+    today = datetime.now()
+    if rango_fechas_str == 'ultimos_30_dias':
+        start_date = today - timedelta(days=30)
+        end_date = today
+    else:
+        try:
+            # Expected format: "Mes Año" (e.g., "Enero 2024")
+            # Convertir nombre de mes en español a número
+            meses_es = {
+                "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6,
+                "julio": 7, "agosto": 8, "septiembre": 9, "octubre": 10, "noviembre": 11, "diciembre": 12
+            }
+            month_name, year_str = rango_fechas_str.lower().split(' ')
+            month_num = meses_es.get(month_name, today.month)
+            year = int(year_str)
+            start_date = datetime(year, month_num, 1)
+            # Calcular fin de mes
+            if month_num == 12:
+                end_date = datetime(year + 1, 1, 1) - timedelta(days=1)
+            else:
+                end_date = datetime(year, month_num + 1, 1) - timedelta(days=1)
+        except Exception:
+            # Fallback a últimos 30 días si falla el parseo
+            start_date = today - timedelta(days=30)
+            end_date = today
+    return start_date, end_date
+
+def safe_decimal(val):
+    if val is None:
+        return Decimal('0.00')
+    try:
+        val = str(val).replace(',', '.').replace(' ', '').strip()
+        return Decimal(val)
+    except Exception:
+        return Decimal('0.00')
+
+def get_campos_por_tipo():
+    """Devuelve los campos de Reserva agrupados por tipo."""
+    float_types = (db.Float, db.Numeric)
+    str_types = (db.String, db.Text, db.Enum)
+    campos_float = []
+    campos_str = []
+    for col in Reserva.__table__.columns:
+        if isinstance(col.type, float_types):
+            campos_float.append(col.name)
+        elif isinstance(col.type, str_types):
+            campos_str.append(col.name)
+    return campos_float, campos_str
+
+def set_model_fields(obj, form, exclude=None, date_fields=None, handle_pdf=False):
+    if exclude is None:
+        exclude = set()
+    if date_fields is None:
+        date_fields = []
+
+    # Detecta tipos de campos
+    float_types = (db.Float, db.Numeric)
+    str_types = (db.String, db.Text, db.Enum)
+    campos_float = []
+    campos_str = []
+    for col in obj.__table__.columns:
+        if col.name in exclude:
+            continue
+        if isinstance(col.type, float_types):
+            campos_float.append(col.name)
+        elif isinstance(col.type, str_types):
+            campos_str.append(col.name)
+
+    for campo in campos_float:
+        valor = safe_decimal(form.get(campo, 0))
+        setattr(obj, campo, valor)
+
+    for campo in campos_str:
+        setattr(obj, campo, form.get(campo, '').strip())
+
+    # Manejo especial para campos de fecha
+    for campo_fecha in date_fields:
+        fecha_val = form.get(campo_fecha, '').strip()
+        fecha_date = None
+        if fecha_val:
+            for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y', '%Y/%m/%d'):
+                try:
+                    fecha_date = datetime.strptime(fecha_val, fmt).date()
+                    break
+                except Exception:
+                    continue
+        setattr(obj, campo_fecha, fecha_date)
+
+def set_reserva_fields(reserva, form):
+    # Cálculo de comisiones antes de setear campos
+    if reserva.usuario:
+        comision_ejecutivo, comision_agencia, ganancia_total = calcular_comisiones(reserva, reserva.usuario)
+        reserva.comision_ejecutivo = comision_ejecutivo
+        reserva.comision_agencia = comision_agencia
+        reserva.ganancia_total = ganancia_total
+    else:
+        flash('Error: La reserva no tiene un usuario asociado.', 'danger')
+        return
+    set_model_fields(
+        reserva,
+        form,
+        exclude={'empresa_id', 'usuario_id', 'usuario', 'comprobante_pdf'},
+        date_fields=['fecha_venta'],
+        handle_pdf=True
+    )
+
+def set_proveedor_fields(proveedor, form):
+    set_model_fields(
+        proveedor,
+        form,
+        exclude={'id', 'empresa_id', 'empresa'},
+        date_fields=['fecha_venta']
+    )
+
+def set_contrato_fields(contrato, form):
+    set_model_fields(
+        contrato,
+        form,
+        exclude={'id', 'producto_id', 'producto', 'comprobante_pdf'},
+        date_fields=['fecha_venta'],
+        handle_pdf=True
+    )
+
+def set_catalogo_fields(catalogo, form):
+    set_model_fields(
+        catalogo,
+        form,
+        exclude={'id', 'producto_id', 'producto', 'comprobante_pdf'},
+        date_fields=['fecha_venta', 'mes'],
+        handle_pdf=True
+    )
+
+def set_factura_fields(factura, form):
+    set_model_fields(
+        factura,
+        form,
+        exclude={'id', 'empresa_id', 'empresa'},
+        date_fields=['fecha_pago', 'mes']
+    )
+
+def allowed_file(filename):
+    """Verifica si el archivo tiene una extensión permitida (actualmente solo PDF)."""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def guardar_comprobante(file, objeto):
+    """
+    Guarda el comprobante PDF para reserva, producto, contrato o catálogo.
+    El nombre del archivo incluye el tipo y el id del objeto.
+    """
+    if file and file.filename:
+        if not allowed_file(file.filename):
+            return None, None, "Tipo de archivo no permitido. Solo se aceptan PDFs."
+
+        # Validación de tamaño
+        file.seek(0, os.SEEK_END)
+        file_size = file.tell()
+        file.seek(0)
+
+        if file_size > MAX_CONTENT_LENGTH:
+            return None, None, f"Archivo demasiado grande. Máximo: {MAX_CONTENT_LENGTH / (1024 * 1024):.0f} MB"
+
+        filename = secure_filename(file.filename)
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        tipo = objeto.__class__.__name__.lower()  # reserva, producto, contrato, catalogo
+        nombre_final = f"{tipo}_{objeto.id}_{timestamp}_{filename}"
+        ruta = os.path.join(app.config['UPLOAD_FOLDER'], nombre_final)
+        file.save(ruta)
+        file.seek(0)
+        contenido_binario = file.read()
+        file.seek(0)
+        return nombre_final, contenido_binario, None
+    return None, None, None
+
+def send_reset_email(user, reset_url):
+    msg = Message("Restablecer contraseña", sender=app.config['MAIL_USERNAME'], recipients=[user.correo])
+    msg.body = f'''Hola {user.username},
+
+Para restablecer tu contraseña, haz clic en el siguiente enlace:
+
+{reset_url}
+
+Si no solicitaste este cambio, simplemente ignora este correo.
+
+Saludos,
+Equipo de Soporte
+'''
+    mail.send(msg)
+
+def usuarios_de_empresa_actual():
+    return Usuario.query.filter(Usuario.empresa_id == current_user.empresa_id).all()
+
+def ruta_inicio_por_rol(usuario):
+    if usuario.rol in ('master', 'admin'):
+        return 'admin_panel'
+    elif usuario.rol == 'controling':
+        return 'controling_panel'
+    elif usuario.rol == 'analista':
+        return 'analista_panel'
+    elif usuario.rol == 'ejecutivo':
+        return 'ejecutivo_panel'
+    else:
+        return 'login'
+
+def obtener_meses_anteriores(n=12, idioma='es'):
+    meses = []
+    today = datetime.now()
+    for i in range(n):
+        month = today.month - i
+        year = today.year
+        if month <= 0:
+            month += 12
+            year -= 1
+        if idioma == 'es':
+            meses_es = [
+                "enero", "febrero", "marzo", "abril", "mayo", "junio",
+                "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
+            ]
+            mes_nombre = meses_es[month - 1].capitalize()
+        else:
+            mes_nombre = datetime(year, month, 1).strftime('%B')
+        meses.append(f"{mes_nombre} {year}")
+    meses.reverse()
+    return meses
+
+def obtener_datos_admin_reservas(search_query, page, per_page):
+    reservas_query = Reserva.query
+
+    if search_query:
+        reservas_query = reservas_query.filter(
+            db.or_(
+                Reserva.producto.ilike(f'%{search_query}%'),
+                Reserva.nombre_pasajero.ilike(f'%{search_query}%'),
+                Reserva.destino.ilike(f'%{search_query}%'),
+                Reserva.nombre_ejecutivo.ilike(f'%{search_query}%'),
+                Reserva.usuario.has(Usuario.username.ilike(f'%{search_query}%')),  # Buscar por username
+                Reserva.usuario.has(Usuario.empresa.has(Empresa.nombre.ilike(f'%{search_query}%')))  # Buscar por nombre de empresa
+            )
+        )
+
+    reservas_paginated = reservas_query.paginate(page=page, per_page=per_page, error_out=False)
+    reservas = reservas_paginated.items
+    return {
+        'reservas': reservas,
+        'pagination': reservas_paginated,
+        'search_query': search_query
+    }
+
+def obtener_datos_control_gestion_clientes(ejecutivo_id, rango_fechas_str):
+    # Obtener ejecutivos (admin y usuario)
+    ejecutivos = Usuario.query.filter(Usuario.rol.in_(['usuario', 'admin'])).order_by(Usuario.nombre).all()
+    # Generar meses anteriores
+    meses_anteriores = obtener_meses_anteriores()
+
+    reservas_query = Reserva.query.join(Usuario)
+    if ejecutivo_id:
+        reservas_query = reservas_query.filter(Reserva.usuario_id == ejecutivo_id)
+    start_date, end_date = _get_date_range(rango_fechas_str)
+    reservas_query = reservas_query.filter(
+        Reserva.fecha_venta >= start_date.strftime('%Y-%m-%d'),
+        Reserva.fecha_venta <= end_date.strftime('%Y-%m-%d')
+    )
+    reservas = reservas_query.order_by(Reserva.fecha_venta.desc()).all()
+
+    return {
+        "reservas": reservas,
+        "ejecutivo_id": ejecutivo_id,
+        "rango_fechas_str": rango_fechas_str,
+        "ejecutivos": ejecutivos,
+        "meses_anteriores": meses_anteriores,
+        "selected_ejecutivo_id": ejecutivo_id,
+        "selected_rango_fechas": rango_fechas_str
+    }
+
+def obtener_datos_panel_comisiones(ejecutivo_id, rango_fechas_str):
+    ejecutivos = Usuario.query.filter(Usuario.rol.in_(['usuario', 'admin'])).order_by(Usuario.nombre).all()
+    meses_anteriores = obtener_meses_anteriores()
+
+    reservas_query = Reserva.query.join(Usuario)
+    if ejecutivo_id:
+        reservas_query = reservas_query.filter(Reserva.usuario_id == ejecutivo_id)
+    start_date, end_date = _get_date_range(rango_fechas_str)
+    reservas_query = reservas_query.filter(
+        Reserva.fecha_venta >= start_date.strftime('%Y-%m-%d'),
+        Reserva.fecha_venta <= end_date.strftime('%Y-%m-%d')
+    )
+    reservas = reservas_query.order_by(Reserva.fecha_venta.desc()).all()
+
+    datos_comisiones = []
+    totales = {
+        'precio_venta_total': 0.0,
+        'hotel_neto': 0.0,
+        'vuelo_neto': 0.0,
+        'traslado_neto': 0.0,
+        'seguro_neto': 0.0,
+        'circuito_neto': 0.0,
+        'crucero_neto': 0.0,
+        'excursion_neto': 0.0,
+        'paquete_neto': 0.0,
+        'bonos': 0.0,
+        'ganancia_total': 0.0,
+        'comision_ejecutivo': 0.0,
+        'comision_agencia': 0.0
+    }
+    
+    for reserva in reservas:
+        ejecutivo = reserva.nombre_ejecutivo or ''
+        comision_ejecutivo, comision_agencia, ganancia_total, comision_ejecutivo_porcentaje = calcular_comisiones(reserva, reserva.usuario)
+        bonos = reserva.bonos or 0.0
+        
+        datos_comisiones.append({
+            'reserva': reserva,
+            'ejecutivo': ejecutivo,
+            'precio_venta_total': reserva.precio_venta_total,
+            'hotel_neto': reserva.hotel_neto,
+            'vuelo_neto': reserva.vuelo_neto,
+            'traslado_neto': reserva.traslado_neto,
+            'seguro_neto': reserva.seguro_neto,
+            'circuito_neto': reserva.circuito_neto,
+            'crucero_neto': reserva.crucero_neto,
+            'excursion_neto': reserva.excursion_neto,
+            'paquete_neto': reserva.paquete_neto,
+            'bonos': bonos,
+            'ganancia_total': ganancia_total,
+            'comision_ejecutivo': comision_ejecutivo,
+            'comision_agencia': comision_agencia,
+            'comision_ejecutivo_porcentaje': comision_ejecutivo_porcentaje * 100,
+        })
+        
+        # Sumar a los totales
+        totales['precio_venta_total'] += reserva.precio_venta_total
+        totales['hotel_neto'] += reserva.hotel_neto
+        totales['vuelo_neto'] += reserva.vuelo_neto
+        totales['traslado_neto'] += reserva.traslado_neto
+        totales['seguro_neto'] += reserva.seguro_neto
+        totales['circuito_neto'] += reserva.circuito_neto
+        totales['crucero_neto'] += reserva.crucero_neto
+        totales['excursion_neto'] += reserva.excursion_neto
+        totales['paquete_neto'] += reserva.paquete_neto
+        totales['bonos'] += bonos
+        totales['ganancia_total'] += ganancia_total
+        totales['comision_ejecutivo'] += comision_ejecutivo
+        totales['comision_agencia'] += comision_agencia
+
+    return {
+        'datos_comisiones': datos_comisiones,
+        'totales': totales,
+        'ejecutivo_id': ejecutivo_id,
+        'rango_fechas_str': rango_fechas_str,
+        'ejecutivos': ejecutivos,
+        'meses_anteriores': meses_anteriores,
+        'selected_ejecutivo_id': ejecutivo_id,
+        'selected_rango_fechas': rango_fechas_str
+    }
+
+def obtener_datos_ranking_ejecutivos(selected_mes_str):
+    meses_anteriores = obtener_meses_anteriores()
+
+    try:
+        month_name, year_str = selected_mes_str.split(' ')
+        month_num = datetime.strptime(month_name, '%B').month
+        year = int(year_str)
+        start_date = datetime(year, month_num, 1)
+        if month_num == 12:
+            end_date = datetime(year + 1, 1, 1) - timedelta(days=1)
+        else:
+            end_date = datetime(year, month_num + 1, 1) - timedelta(days=1)
+    except Exception:
+        return {
+            'ranking_data': [],
+            'selected_mes_str': selected_mes_str,
+            'meses_anteriores': meses_anteriores
+        }
+
+    reservas_query = Reserva.query.join(Usuario).filter(
+        Reserva.fecha_venta >= start_date.strftime('%Y-%m-%d'),
+        Reserva.fecha_venta <= end_date.strftime('%Y-%m-%d')
+    )
+
+    ranking_data = {}
+    for reserva in reservas_query.all():
+        key = reserva.nombre_ejecutivo or ''
+        if key not in ranking_data:
+            ranking_data[key] = {
+                'ejecutivo': key,
+                'num_ventas': 0,
+                'ganancia_bruta': 0.0
+            }
+        total_neto = (
+            reserva.hotel_neto +
+            reserva.vuelo_neto +
+            reserva.traslado_neto +
+            reserva.seguro_neto +
+            reserva.circuito_neto +
+            reserva.crucero_neto +
+            reserva.excursion_neto +
+            reserva.paquete_neto
+        )
+        ganancia_bruta = reserva.precio_venta_total - total_neto
+        ranking_data[key]['num_ventas'] += 1
+        ranking_data[key]['ganancia_bruta'] += ganancia_bruta
+
+    ranking_final = list(ranking_data.values())
+    ranking_final.sort(key=lambda x: x['ganancia_bruta'], reverse=True)
+
+    return {
+        'ranking_data': ranking_final,
+        'selected_mes_str': selected_mes_str,
+        'meses_anteriores': meses_anteriores
+    }
+
+def obtener_datos_reporte_detalle_ventas(selected_mes_str):
+    meses_anteriores = obtener_meses_anteriores()
+
+    try:
+        month_name, year_str = selected_mes_str.split(' ')
+        month_num = datetime.strptime(month_name, '%B').month
+        year = int(year_str)
+        start_date = datetime(year, month_num, 1)
+        if month_num == 12:
+            end_date = datetime(year + 1, 1, 1) - timedelta(days=1)
+        else:
+            end_date = datetime(year, month_num + 1, 1) - timedelta(days=1)
+    except Exception:
+        return {
+            'reporte_data': [],
+            'totales': {
+                'total_ventas_global': 0.0,
+                'total_costos_global': 0.0,
+                'total_comisiones_global': 0.0,
+                'total_bonos_global': 0.0,
+                'total_ganancia_neta_global': 0.0,
+                'total_ventas_realizadas_global': 0
+            },
+            'selected_mes_str': selected_mes_str,
+            'meses_anteriores': meses_anteriores
+        }
+
+    reservas_query = Reserva.query.join(Usuario).filter(
+        Reserva.fecha_venta >= start_date.strftime('%Y-%m-%d'),
+        Reserva.fecha_venta <= end_date.strftime('%Y-%m-%d')
+    )
+
+    reporte_data_dict = {}
+    for reserva in reservas_query.all():
+        ejecutivo_id = reserva.nombre_ejecutivo or ''
+        correo_ejecutivo = reserva.correo_ejecutivo or ''
+        rol_ejecutivo = reserva.usuario.rol
+        comision_ejecutivo, comision_agencia, ganancia_total, comision_ejecutivo_porcentaje = calcular_comisiones(reserva, reserva.usuario)
+        bonos = reserva.bonos or 0.0
+
+        total_neto = (
+            reserva.hotel_neto +
+            reserva.vuelo_neto +
+            reserva.traslado_neto +
+            reserva.seguro_neto +
+            reserva.circuito_neto +
+            reserva.crucero_neto +
+            reserva.excursion_neto +
+            reserva.paquete_neto
+        )
+        comision_usuario = comision_ejecutivo
+        ganancia_neta = ganancia_total - comision_usuario
+
+        if ejecutivo_id not in reporte_data_dict:
+            reporte_data_dict[ejecutivo_id] = {
+                'nombre_ejecutivo': ejecutivo_id,
+                'correo_ejecutivo': correo_ejecutivo,
+                'rol_ejecutivo': rol_ejecutivo,
+                'total_ventas': 0.0,
+                'total_costos': 0.0,
+                'total_comisiones': 0.0,
+                'total_bonos': 0.0,
+                'ganancia_neta': 0.0,
+                'num_ventas': 0
+            }
+        reporte_data_dict[ejecutivo_id]['total_ventas'] += reserva.precio_venta_total
+        reporte_data_dict[ejecutivo_id]['total_costos'] += total_neto
+        reporte_data_dict[ejecutivo_id]['total_comisiones'] += comision_usuario
+        reporte_data_dict[ejecutivo_id]['total_bonos'] += bonos
+        reporte_data_dict[ejecutivo_id]['ganancia_neta'] += ganancia_neta
+        reporte_data_dict[ejecutivo_id]['num_ventas'] += 1
+
+    reporte_data = list(reporte_data_dict.values())
+
+    totales = {
+        'total_ventas_global': sum(r['total_ventas'] for r in reporte_data),
+        'total_costos_global': sum(r['total_costos'] for r in reporte_data),
+        'total_comisiones_global': sum(r['total_comisiones'] for r in reporte_data),
+        'total_bonos_global': sum(r['total_bonos'] for r in reporte_data),
+        'total_ganancia_neta_global': sum(r['ganancia_neta'] for r in reporte_data),
+        'total_ventas_realizadas_global': sum(r['num_ventas'] for r in reporte_data)
+    }
+
+    return {
+        'reporte_data': reporte_data,
+        'totales': totales,
+        'selected_mes_str': selected_mes_str,
+        'meses_anteriores': meses_anteriores
+    }
+
+def obtener_datos_reporte_ventas_general_mensual(selected_mes_str):
+    meses_anteriores = obtener_meses_anteriores()
+
+    try:
+        month_name, year_str = selected_mes_str.split(' ')
+        month_num = datetime.strptime(month_name, '%B').month
+        year = int(year_str)
+        start_date = datetime(year, month_num, 1)
+        if month_num == 12:
+            end_date = datetime(year + 1, 1, 1) - timedelta(days=1)
+        else:
+            end_date = datetime(year, month_num + 1, 1) - timedelta(days=1)
+    except Exception:
+        return {
+            'ganancia_total_mes': 0.0,
+            'comision_total_ejecutivos': 0.0,
+            'comision_total_agencia': 0.0,
+            'selected_mes_str': selected_mes_str,
+            'meses_anteriores': meses_anteriores,
+            'datos_estado_pago': [0, 0],
+            'datos_venta_cobrada': [0, 0],
+            'datos_venta_emitida': [0, 0]
+        }
+
+    reservas_query = Reserva.query.join(Usuario).filter(
+        Reserva.fecha_venta >= start_date.strftime('%Y-%m-%d'),
+        Reserva.fecha_venta <= end_date.strftime('%Y-%m-%d')
+    )
+
+    total_ventas_mes = 0.0
+    total_costos_mes = 0.0
+    comision_total_ejecutivos = 0.0
+    comision_total_agencia = 0.0
+    pagado = 0
+    no_pagado = 0
+    cobrada = 0
+    no_cobrada = 0
+    emitida = 0
+    no_emitida = 0
+
+    for reserva in reservas_query.all():
+        comision_ejecutivo, comision_agencia, ganancia_total, _ = calcular_comisiones(reserva, reserva.usuario)
+        total_neto = (
+            reserva.hotel_neto +
+            reserva.vuelo_neto +
+            reserva.traslado_neto +
+            reserva.seguro_neto +
+            reserva.circuito_neto +
+            reserva.crucero_neto +
+            reserva.excursion_neto +
+            reserva.paquete_neto
+        )
+        comision_usuario = comision_ejecutivo
+        ganancia_neta = ganancia_total - comision_usuario
+
+        total_ventas_mes += reserva.precio_venta_total or 0
+        total_costos_mes += total_neto or 0
+        comision_total_ejecutivos += comision_usuario
+        comision_total_agencia += ganancia_neta
+
+        # Estado de pago
+        if (reserva.estado_pago or '').strip().lower() == 'pagado':
+            pagado += 1
+        else:
+            no_pagado += 1
+        # Venta cobrada
+        if (reserva.venta_cobrada or '').strip().lower() == 'cobrada':
+            cobrada += 1
+        else:
+            no_cobrada += 1
+        # Venta emitida
+        if (reserva.venta_emitida or '').strip().lower() == 'emitida':
+            emitida += 1
+        else:
+            no_emitida += 1
+
+    ganancia_total_mes = total_ventas_mes - total_costos_mes
+
+    datos_estado_pago = [pagado, no_pagado]
+    datos_venta_cobrada = [cobrada, no_cobrada]
+    datos_venta_emitida = [emitida, no_emitida]
+
+    return {
+        'ganancia_total_mes': ganancia_total_mes,
+        'comision_total_ejecutivos': comision_total_ejecutivos,
+        'comision_total_agencia': comision_total_agencia,
+        'selected_mes_str': selected_mes_str,
+        'meses_anteriores': meses_anteriores,
+        'datos_estado_pago': datos_estado_pago,
+        'datos_venta_cobrada': datos_venta_cobrada,
+        'datos_venta_emitida': datos_venta_emitida
+    }
+
+def obtener_datos_marketing(ejecutivo_id, rango_fechas_str):
+    ejecutivos = Usuario.query.filter(Usuario.rol.in_(['usuario', 'admin'])).order_by(Usuario.nombre).all()
+    meses_anteriores = obtener_meses_anteriores()
+
+    reservas_query = Reserva.query.join(Usuario)
+    if ejecutivo_id:
+        reservas_query = reservas_query.filter(Reserva.usuario_id == ejecutivo_id)
+    start_date, end_date = _get_date_range(rango_fechas_str)
+    reservas_query = reservas_query.filter(
+        Reserva.fecha_venta >= start_date.strftime('%Y-%m-%d'),
+        Reserva.fecha_venta <= end_date.strftime('%Y-%m-%d')
+    )
+    reservas = reservas_query.order_by(Reserva.fecha_venta.desc()).all()
+
+    reservas_marketing = [
+        {
+            'destino': r.destino,
+            'fecha_venta': r.fecha_venta,
+            'fecha_viaje': r.fecha_viaje,
+            'nombre_pasajero': r.nombre_pasajero,
+            'telefono_pasajero': r.telefono_pasajero,
+            'mail_pasajero': r.mail_pasajero
+        }
+        for r in reservas
+    ]
+
+    return {
+        'reservas': reservas_marketing,
+        'ejecutivo_id': ejecutivo_id,
+        'rango_fechas_str': rango_fechas_str,
+        'ejecutivos': ejecutivos,
+        'meses_anteriores': meses_anteriores,
+        'selected_ejecutivo_id': ejecutivo_id,
+        'selected_rango_fechas': rango_fechas_str
+    }
+
+def calcular_comisiones(reserva, usuario):
+    comision_ejecutivo_porcentaje = safe_decimal(usuario.comision) / Decimal('100.0')
+    total_neto = (
+        reserva.hotel_neto +
+        reserva.vuelo_neto +
+        reserva.traslado_neto +
+        reserva.seguro_neto +
+        reserva.circuito_neto +
+        reserva.crucero_neto +
+        reserva.excursion_neto +
+        reserva.paquete_neto
+    )
+    ganancia_total = reserva.precio_venta_total - total_neto
+    comision_ejecutivo = ganancia_total * comision_ejecutivo_porcentaje
+    comision_agencia = ganancia_total - comision_ejecutivo
+    return comision_ejecutivo, comision_agencia, ganancia_total, comision_ejecutivo_porcentaje
+
+# =====================
+# RUTAS DE FLASK
+# =====================
+
+# =====================
+# LOGIN DE USUARIOS
+# =====================
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        user = Usuario.query.filter_by(username=request.form['username']).first()
+        if user and user.check_password(request.form['password']):
+            login_user(user)
+            return redirect(url_for(ruta_inicio_por_rol(user)))
+        flash('Usuario o contraseña incorrectos.', 'danger')
+    return render_template('login.html')
+
+@app.route('/login/admin')
+@login_required
+@rol_required('admin', 'master')
+def admin_panel():
+    usuarios = Usuario.query.all() if current_user.rol == 'master' else Usuario.query.filter(Usuario.username != 'mcontreras').all()
+    empresas = Empresa.query.all()
+    empresa_seleccionada = None
+    empresa_id = session.get('empresa_id_seleccionada')
+    if empresa_id:
+        empresa_seleccionada = Empresa.query.get(empresa_id)
+    return render_template('admin_panel.html', usuarios=usuarios, empresas=empresas, empresa_seleccionada=empresa_seleccionada)
+
+
+@app.route('/login/controling')
+@login_required
+@rol_required('controling')
+def controling_panel():
+    usuarios = usuarios_de_empresa_actual()
+    return render_template('controling_panel.html', usuarios=usuarios)
+
+@app.route('/login/analista')
+@login_required
+@empresa_tiene_productos_required
+@rol_required('analista')
+def analista_panel():
+    usuarios = usuarios_de_empresa_actual()
+    return render_template('analista_panel.html', usuarios=usuarios)
+
+@app.route('/login/ejecutivo')
+@login_required
+@empresa_tiene_gestion_required
+@rol_required('ejecutivo')
+def ejecutivo_panel():
+    usuarios = usuarios_de_empresa_actual()
+    return render_template('ejecutivo_panel.html', usuarios=usuarios)
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    flash('Has cerrado sesión correctamente.', 'info')
+    return redirect(url_for('login'))
+
+@app.route('/reset_password', methods=['GET', 'POST'])
+def reset_password_request():
+    if request.method == 'POST':
+        email = request.form['email']
+        user = Usuario.query.filter_by(correo=email).first()
+        if user:
+            token = serializer.dumps(email, salt='password-reset-salt')
+            reset_url = url_for('reset_password', token=token, _external=True)
+            send_reset_email(user, reset_url)
+            flash('Se ha enviado un correo electrónico con instrucciones para restablecer tu contraseña.', 'info')
+        else:
+            flash('No se encontró una cuenta con ese correo electrónico.', 'danger')
+    return render_template('reset_password_request.html')
+
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    try:
+        email = serializer.loads(token, salt='password-reset-salt', max_age=3600)
+    except:
+        flash('El enlace de restablecimiento de contraseña es inválido o ha expirado.', 'danger')
+        return redirect(url_for('reset_password_request'))
+
+    if request.method == 'POST':
+        password = request.form['password']
+        user = Usuario.query.filter_by(correo=email).first()
+        if user:
+            user.password = password
+            db.session.commit()
+            flash('Tu contraseña ha sido actualizada.', 'success')
+            return redirect(url_for('login'))
+    return render_template('reset_password.html')
+
+# =====================
+# ADMIN / ADMINISTRACIÓN DE USUARIOS
+# =====================
+@app.route('/admin/usuarios/nuevo', methods=['GET', 'POST'])
+@app.route('/admin/usuarios/editar/<int:id>', methods=['GET', 'POST'])
+@login_required
+@rol_required('admin', 'master', 'controling')
+def usuario_form(id=None):
+    usuario = Usuario.query.get(id) if id else None
+    if request.method == 'POST':
+        if usuario:
+            ok, msg = editar_usuario_existente(usuario, request.form, current_user)
+        else:
+            ok, msg = crear_usuario(request.form, current_user)
+        if ok:
+            flash(msg, 'success')
+            return redirect(url_for('admin_panel'))
+        else:
+            flash(msg, 'danger')
+    return render_template('nuevo_usuario.html', usuario=usuario)
+
+@app.route('/admin/usuarios/eliminar/<int:id>', methods=['POST'])
+@login_required
+@rol_required('admin', 'master','controling')
+def eliminar_usuario(id):
+    usuario = Usuario.query.get_or_404(id)
+    if not puede_eliminar_usuario(usuario):
+        flash('No autorizado para eliminar este usuario.', 'danger')
+        return redirect(url_for('admin_panel'))
+    db.session.delete(usuario)
+    db.session.commit()
+    flash('Usuario eliminado.', 'success')
+    return redirect(url_for('admin_panel'))
+
+# =====================
+# ADMIN / ADMINISTRACIÓN DE EMPRESAS
+# =====================
+@app.route('/admin/empresas/nueva', methods=['GET', 'POST'])
+@login_required
+@rol_required('admin', 'master')
+def nueva_empresa():
+    if request.method == 'POST':
+        nombre = request.form['nombre']
+        tiene_gestion = request.form['tiene_gestion']
+        tiene_productos = request.form['tiene_productos']
+        representante = request.form['representante']
+        telefono = request.form['telefono']
+        direccion = request.form['direccion']
+        razon_social = request.form['razon_social']
+        correo = request.form['correo']
+        empresa = Empresa(
+            nombre=nombre,
+            representante=representante,
+            telefono=telefono,
+            direccion=direccion,
+            tiene_gestion=tiene_gestion,
+            tiene_productos=tiene_productos,
+            razon_social=razon_social,
+            correo=correo
+        )
+        db.session.add(empresa)
+        db.session.commit()
+        flash('Empresa creada correctamente.', 'success')
+        return redirect(url_for('admin_panel'))
+    return render_template('nueva_empresa.html')
+
+@app.route('/seleccionar_empresa', methods=['POST'])
+@login_required
+@rol_required('admin', 'master')
+def seleccionar_empresa():
+    empresa_id = request.form.get('empresa_id')
+    if empresa_id:
+        session['empresa_id_seleccionada'] = int(empresa_id)
+        flash('Empresa seleccionada correctamente.', 'success')
+    else:
+        flash('Por favor selecciona una empresa.', 'danger')
+    return redirect(url_for('admin_panel'))
+
+@app.route('/crear_factura', methods=['POST'])
+def crear_factura():
+    empresa_id = request.form['empresa_id']
+    mes = request.form['mes']
+    monto = request.form['monto']
+    estado = request.form['estado']
+    fecha_pago = request.form.get('fecha_pago')
+    metodo = request.form.get('metodo')
+    observaciones = request.form.get('observaciones')
+
+    # Guardar en base de datos aquí
+    # ...
+
+    return redirect(url_for('contabilidad_empresas.html'))
+
+# =====================
+# ADMIN / RESERVAS
+# =====================
+@app.route('/admin/reservas')
+@login_required
+@rol_required('admin', 'master', 'controling')
+def admin_reservas():
+    search_query = request.args.get('search', '').strip()
+    page = request.args.get('page', 1, type=int)
+    per_page = 10  # Número de elementos por página
+    contexto = obtener_datos_admin_reservas(search_query, page, per_page)
+    return render_template('admin_reservas.html', **contexto)
+
+# =====================
+# ADMIN / GESTION
+# =====================
+@app.route('/control_gestion_clientes')
+@login_required
+@rol_required('admin', 'master')
+def control_gestion_clientes():
+    ejecutivo_id = request.args.get('ejecutivo_id', type=int)
+    rango_fechas_str = request.args.get('rango_fechas', 'ultimos_30_dias')
+    contexto = obtener_datos_control_gestion_clientes(ejecutivo_id, rango_fechas_str)
+    return render_template('control_gestion_clientes.html', **contexto)
+
+@app.route('/panel_comisiones')
+@login_required
+@rol_required('admin', 'master')
+def panel_comisiones():
+    ejecutivo_id = request.args.get('ejecutivo_id', type=int)
+    rango_fechas_str = request.args.get('rango_fechas', 'ultimos_30_dias')
+    contexto = obtener_datos_panel_comisiones(ejecutivo_id, rango_fechas_str)
+    return render_template('panel_comisiones.html', **contexto)
+
+@app.route('/ranking_ejecutivos')
+@login_required
+@rol_required('admin', 'master')
+def ranking_ejecutivos():
+    selected_mes_str = request.args.get('mes', '')
+    contexto = obtener_datos_ranking_ejecutivos(selected_mes_str)
+    return render_template('ranking_ejecutivos.html', **contexto)
+
+@app.route('/reporte_detalle_ventas')
+@login_required
+@rol_required('admin', 'master')
+def reporte_detalle_ventas():
+    selected_mes_str = request.args.get('mes', '')
+    contexto = obtener_datos_reporte_detalle_ventas(selected_mes_str)
+    return render_template('reporte_detalle_ventas.html', **contexto)
+
+@app.route('/reporte_ventas_general_mensual')
+@login_required
+@rol_required('admin', 'master')
+def reporte_ventas_general_mensual():
+    selected_mes_str = request.args.get('mes', '')
+    contexto = obtener_datos_reporte_ventas_general_mensual(selected_mes_str)
+    return render_template('reporte_ventas_general_mensual.html', **contexto)
+
+@app.route('/marketing')
+@login_required
+@rol_required('admin', 'master')
+def marketing():
+    ejecutivo_id = request.args.get('ejecutivo_id', type=int)
+    rango_fechas_str = request.args.get('rango_fechas', 'ultimos_30_dias')
+    contexto = obtener_datos_marketing(ejecutivo_id, rango_fechas_str)
+    return render_template('marketing.html', **contexto)
+
+# =====================
+# RESERVAS
+# =====================
+@app.route('/reservas', methods=['GET', 'POST'])
+@login_required
+def gestionar_reservas():
+    if request.method == 'POST':
+        reserva_id = request.form.get('reserva_id')
+        file = request.files.get('archivo_pdf')
+
+        if reserva_id:
+            reserva = Reserva.query.get(reserva_id)
+            if not reserva or not puede_editar_reserva(reserva):
+                flash('No autorizado.', 'danger')
+                return redirect(url_for('gestionar_reservas'))
+
+            set_reserva_fields(reserva, request.form)
+
+            nombre_archivo, contenido_pdf, error_mensaje = guardar_comprobante(file, reserva)
+            if error_mensaje:
+                flash(error_mensaje, 'danger')
+            elif nombre_archivo:
+                reserva.comprobante_venta = nombre_archivo
+                reserva.comprobante_pdf = contenido_pdf
+
+        else:
+            nueva_reserva = Reserva(
+                usuario_id=current_user.id
+            )
+            db.session.add(nueva_reserva)
+            db.session.flush()  # Asegura que nueva_reserva tenga un ID asignado
+            set_reserva_fields(nueva_reserva, request.form)
+
+            nombre_archivo, contenido_pdf, error_mensaje = guardar_comprobante(file, nueva_reserva)
+            if error_mensaje:
+                flash(error_mensaje, 'danger')
+            elif nombre_archivo and contenido_pdf:
+                nueva_reserva.comprobante_venta = nombre_archivo
+                nueva_reserva.comprobante_pdf = contenido_pdf
+
+            db.session.add(nueva_reserva)
+
+        db.session.commit()
+        flash('Reserva guardada.', 'success')
+        return redirect(url_for('gestionar_reservas'))
+
+    search_query = request.args.get('search', '').strip()
+    page = request.args.get('page', 1, type=int)
+    per_page = 10  # Número de elementos por página
+
+    reservas_query = Reserva.query
+
+    if current_user.rol not in ('admin', 'master'):
+        reservas_query = reservas_query.filter_by(usuario_id=current_user.id)
+
+    if search_query:
+        reservas_query = reservas_query.filter(
+            db.or_(
+                Reserva.producto.ilike(f'%{search_query}%'),
+                Reserva.nombre_pasajero.ilike(f'%{search_query}%'),
+                Reserva.destino.ilike(f'%{search_query}%'),
+                Reserva.nombre_ejecutivo.ilike(f'%{search_query}%')
+            )
+        )
+
+    reservas_paginated = reservas_query.paginate(page=page, per_page=per_page, error_out=False)
+    reservas = reservas_paginated.items
+
+    editar_id = request.args.get('editar')
+    editar_reserva = None
+    if editar_id:
+        reserva_a_editar = Reserva.query.get(int(editar_id))
+        if reserva_a_editar and puede_editar_reserva(reserva_a_editar):
+            editar_reserva = reserva_a_editar
+
+    return render_template(
+        'reservas.html',
+        reservas=reservas,
+        editar_reserva=editar_reserva,
+        pagination=reservas_paginated,
+        search_query=search_query
+    )
+
+@app.route('/pdf/<int:reserva_id>')
+@login_required
+def ver_pdf_db(reserva_id):
+    reserva = Reserva.query.get_or_404(reserva_id)
+    if not puede_editar_reserva(reserva):
+        flash('No autorizado.', 'danger')
+        return redirect(url_for('gestionar_reservas'))
+    if reserva.comprobante_pdf:
+        return send_file(
+            io.BytesIO(reserva.comprobante_pdf),
+            mimetype='application/pdf',
+            as_attachment=False,
+            download_name=f"{reserva.id}_comprobante.pdf"
+        )
+    else:
+        flash('No hay comprobante PDF guardado en la base de datos.', 'warning')
+        return redirect(url_for('gestionar_reservas'))
+
+@app.route('/comprobante/<int:reserva_id>')
+@login_required
+def descargar_comprobante(reserva_id):
+    reserva = Reserva.query.get_or_404(reserva_id)
+
+    # Verifica permisos: solo admin/master o dueño de la reserva
+    if current_user.rol not in ('admin', 'master') and reserva.usuario_id != current_user.id:
+        flash('No autorizado para ver este comprobante.', 'danger')
+        return redirect(url_for('gestionar_reservas'))
+
+    if not reserva.comprobante_pdf:
+        flash('No hay comprobante para esta reserva.', 'warning')
+        return redirect(url_for('gestionar_reservas'))
+
+    return Response(
+        reserva.comprobante_pdf,
+        mimetype='application/pdf',
+        headers={"Content-Disposition": f"inline; filename=comprobante_{reserva.id}.pdf"}
+    )
+
+@app.route('/reservas/eliminar/<int:id>', methods=['POST'])
+@login_required
+def eliminar_reserva(id):
+    reserva = Reserva.query.get_or_404(id)
+    if not puede_editar_reserva(reserva):
+        flash('No autorizado.', 'danger')
+        return redirect(url_for('gestionar_reservas'))
+
+    # Eliminar el archivo de comprobante si existe
+    if reserva.comprobante_venta:
+        ruta_comprobante = os.path.join(app.config['UPLOAD_FOLDER'], reserva.comprobante_venta)
+        if os.path.exists(ruta_comprobante):
+            os.remove(ruta_comprobante)
+            flash(f'Comprobante {reserva.comprobante_venta} eliminado del servidor.', 'info')
+
+    db.session.delete(reserva)
+    db.session.commit()
+    flash('Reserva eliminada.', 'success')
+    return redirect(url_for('gestionar_reservas'))
+
+@app.route('/reservas_usuarios')
+@login_required
+def reservas_usuarios():
+    # Generar lista de meses anteriores (12 meses)
+    meses_anteriores = obtener_meses_anteriores()
+
+    # Obtener mes seleccionado
+    selected_mes_str = request.args.get('mes', meses_anteriores[-1] if meses_anteriores else '')
+    today = datetime.now()
+    try:
+        start_date, end_date = _get_date_range(selected_mes_str)
+    except Exception:
+        start_date, end_date = today, today
+
+    # Filtrar reservas por usuario y mes
+    page = request.args.get('page', 1, type=int)
+    per_page = 10  # Número de elementos por página
+
+    reservas_query = Reserva.query.filter(
+        Reserva.usuario_id == current_user.id,
+        Reserva.fecha_venta >= start_date.strftime('%Y-%m-%d'),
+        Reserva.fecha_venta <= end_date.strftime('%Y-%m-%d')
+    )
+
+    reservas_paginated = reservas_query.paginate(page=page, per_page=per_page, error_out=False)
+    reservas = reservas_paginated.items
+
+    # Calcular totales
+    total_ventas = sum(r.precio_venta_total or 0 for r in reservas)
+    total_comision_ejecutivo = sum(r.comision_ejecutivo or 0 for r in reservas)
+
+    return render_template(
+        'reservas_usuarios.html',
+        reservas=reservas,
+        meses_anteriores=meses_anteriores,
+        selected_mes_str=selected_mes_str,
+        total_ventas=total_ventas,
+        total_comision_ejecutivo=total_comision_ejecutivo,
+        pagination=reservas_paginated
+    )
+
+# =====================
+# EXPORTACIONES A EXCEL
+# =====================
+@app.route('/exportar_usuarios')
+@login_required
+def exportar_usuarios():
+    usuarios = Usuario.query.all() if current_user.rol in ('admin', 'master','controling') else Usuario.query.filter_by(id=current_user.id).all()
+
+    data = [{
+        'ID': u.id,
+        'Usuario': u.username,
+        'Contraseña': u.password_hash,  # No se recomienda exportar contraseñas
+        'Nombre': u.nombre + ' ' + u.apellidos,
+        'rut': u.rut,
+        'Fecha de nacimiento': u.fecha_nacimiento,
+        'Fecha de ingreso': u.fecha_ingreso,
+        'Teléfono': u.telefono,
+        'Correo Personal': u.correo_personal,
+        'Correo Corporativo': u.correo,
+        'Dirección': u.direccion,
+        'Comisión': u.comision,
+        'Sueldo': u.sueldo,
+        'Estado': u.estado,
+        'Rol': u.rol,
+        'Empresa': u.empresa.nombre if u.empresa else 'N/A',
+    } for u in usuarios]
+
+    df = pd.DataFrame(data)
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Usuarios')
+    output.seek(0)
+
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name='usuarios.xlsx',
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+
+@app.route('/exportar_reservas') 
+@login_required
+def exportar_reservas():
+    reservas = Reserva.query.all() if current_user.rol in ('admin', 'master') else Reserva.query.filter_by(usuario_id=current_user.id).all()
+
+    data = [{
+        'Usuario': r.usuario.username,
+        'Fecha de viaje': r.fecha_viaje,
+        'Producto': r.producto,
+        'Fecha de venta': r.fecha_venta,
+        'Modalidad de pago': r.modalidad_pago,
+        'Nombre de pasajero': r.nombre_pasajero,
+        'Teléfono de pasajero': r.telefono_pasajero,
+        'Mail Pasajero': r.mail_pasajero,
+        'Precio venta total': r.precio_venta_total,
+        'Hotel neto': r.hotel_neto,
+        'Vuelo neto': r.vuelo_neto,
+        'Traslado neto': r.traslado_neto,
+        'Seguro neto': r.seguro_neto,
+        'Circuito Neto': r.circuito_neto,
+        'Crucero Neto': r.crucero_neto,
+        'Excursion Neto': r.excursion_neto,
+        'Paquete Neto': r.paquete_neto,
+        'Ganancia Total': r.ganancia_total,
+        'Comisión Ejecutivo': r.comision_ejecutivo,
+        'Comisión Agencia': r.comision_agencia,
+        'Bonos': r.bonos,
+        'Comentarios': r.comentarios,
+        'Localizadores': r.localizadores,
+        'Nombre ejecutivo': r.nombre_ejecutivo,
+        'Correo ejecutivo': r.correo_ejecutivo,
+        'Destino': r.destino,  
+        'comentarios' : r.comentarios,  # Comentarios de la reserva      
+        'Estado de pago': r.estado_pago,           # Nuevo campo en exportación
+        'Venta cobrada': r.venta_cobrada,          # Nuevo campo en exportación
+        'Venta emitida': r.venta_emitida           # Nuevo campo en exportación
+    } for r in reservas]
+
+    df = pd.DataFrame(data)
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Reservas')
+    output.seek(0)
+
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name='reservas.xlsx',
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+
+@app.route('/exportar_control_gestion_clientes')
+@login_required
+@rol_required('admin', 'master')
+def exportar_control_gestion_clientes():
+    ejecutivo_id = request.args.get('ejecutivo_id', type=int)
+    rango_fechas_str = request.args.get('rango_fechas', 'ultimos_30_dias')
+
+    reservas_query = Reserva.query.join(Usuario)
+    if ejecutivo_id:
+        reservas_query = reservas_query.filter(Reserva.usuario_id == ejecutivo_id)
+    start_date, end_date = _get_date_range(rango_fechas_str)
+    reservas_query = reservas_query.filter(Reserva.fecha_venta >= start_date.strftime('%Y-%m-%d'),
+                                           Reserva.fecha_venta <= end_date.strftime('%Y-%m-%d'))
+    reservas = reservas_query.order_by(Reserva.fecha_venta.desc()).all()
+
+    data = [
+        {
+            'Ejecutivo': f"{r.nombre_ejecutivo}\n{r.correo_ejecutivo}",
+            'Estado de Pago': r.estado_pago,
+            'Venta Cobrada': r.venta_cobrada,
+            'Venta Emitida': r.venta_emitida,
+            'Nombre Pasajero': r.nombre_pasajero,
+            'Teléfono Pasajero': r.telefono_pasajero,
+            'Mail Pasajero': r.mail_pasajero,
+            'Destino': r.destino,
+            'Producto': r.producto,
+            'Fecha de Compra': r.fecha_venta,
+            'Fecha de Viaje': r.fecha_viaje
+        }
+        for r in reservas
+    ]
+
+    output = io.BytesIO()
+    df = pd.DataFrame(data)
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Control Gestión Clientes')
+    output.seek(0)
+
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name='control_gestion_clientes.xlsx',
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+
+@app.route('/exportar_reporte_detalle_ventas')
+@login_required
+@rol_required('admin', 'master')
+def exportar_reporte_detalle_ventas():
+    selected_mes_str = request.args.get('mes', '')
+    try:
+        month_name, year_str = selected_mes_str.split(' ')
+        month_num = datetime.strptime(month_name, '%B').month
+        year = int(year_str)
+        start_date = datetime(year, month_num, 1)
+        if month_num == 12:
+            end_date = datetime(year + 1, 1, 1) - timedelta(days=1)
+        else:
+            end_date = datetime(year, month_num + 1, 1) - timedelta(days=1)
+    except Exception:
+        today = datetime.now()
+        start_date, end_date = today, today
+
+    reservas_query = Reserva.query.join(Usuario).filter(
+        Reserva.fecha_venta >= start_date.strftime('%Y-%m-%d'),
+        Reserva.fecha_venta <= end_date.strftime('%Y-%m-%d')
+    )
+
+    reporte_data_dict = {}
+    for reserva in reservas_query.all():
+        ejecutivo_id = reserva.nombre_ejecutivo or ''
+        correo_ejecutivo = reserva.correo_ejecutivo or ''
+        rol_ejecutivo = reserva.usuario.rol
+        comision_ejecutivo_porcentaje = safe_decimal(reserva.usuario.comision) / Decimal('100.0')
+        total_neto = (
+            reserva.hotel_neto +
+            reserva.vuelo_neto +
+            reserva.traslado_neto +
+            reserva.seguro_neto +
+            reserva.circuito_neto +
+            reserva.crucero_neto +
+            reserva.excursion_neto +
+            reserva.paquete_neto
+        )
+        ganancia_bruta = reserva.precio_venta_total - total_neto
+        comision_usuario = ganancia_bruta * comision_ejecutivo_porcentaje
+        ganancia_neta = ganancia_bruta - comision_usuario
+        bonos = reserva.bonos or 0.0
+
+        if ejecutivo_id not in reporte_data_dict:
+            reporte_data_dict[ejecutivo_id] = {
+                'Ejecutivo': ejecutivo_id,
+                'Correo Ejecutivo': correo_ejecutivo,
+                'Rol Ejecutivo': rol_ejecutivo,
+                'Total Ventas': 0.0,
+                'Total Costos': 0.0,
+                'Total Comisiones Ejecutivo': 0.0,
+                'Total Bonos': 0.0,
+                'Total Ganancia': 0.0,
+                'N° de Ventas Realizadas': 0
+            }
+        reporte_data_dict[ejecutivo_id]['Total Ventas'] += reserva.precio_venta_total
+        reporte_data_dict[ejecutivo_id]['Total Costos'] += total_neto
+        reporte_data_dict[ejecutivo_id]['Total Comisiones Ejecutivo'] += comision_usuario
+        reporte_data_dict[ejecutivo_id]['Total Bonos'] += bonos
+        reporte_data_dict[ejecutivo_id]['Total Ganancia'] += ganancia_neta
+        reporte_data_dict[ejecutivo_id]['N° de Ventas Realizadas'] += 1
+
+    reporte_data = list(reporte_data_dict.values())
+
+    output = io.BytesIO()
+    df = pd.DataFrame(reporte_data)
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Detalle Ventas')
+    output.seek(0)
+
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name='reporte_detalle_ventas.xlsx',
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+
+@app.route('/exportar_marketing')
+@login_required
+@rol_required('admin', 'master')
+def exportar_marketing():
+    ejecutivo_id = request.args.get('ejecutivo_id', type=int)
+    rango_fechas_str = request.args.get('rango_fechas', 'ultimos_30_dias')
+
+    reservas_query = Reserva.query.join(Usuario)
+    if ejecutivo_id:
+        reservas_query = reservas_query.filter(Reserva.usuario_id == ejecutivo_id)
+    start_date, end_date = _get_date_range(rango_fechas_str)
+    reservas_query = reservas_query.filter(Reserva.fecha_venta >= start_date.strftime('%Y-%m-%d'),
+                                           Reserva.fecha_venta <= end_date.strftime('%Y-%m-%d'))
+    reservas = reservas_query.order_by(Reserva.fecha_venta.desc()).all()
+
+    data = [
+        {
+            'Destino': r.destino,
+            'Fecha de venta': r.fecha_venta,
+            'Fecha de viaje': r.fecha_viaje,
+            'Nombre pasajero': r.nombre_pasajero,
+            'Teléfono pasajero': r.telefono_pasajero,
+            'Mail pasajero': r.mail_pasajero
+        }
+        for r in reservas
+    ]
+
+    output = io.BytesIO()
+    df = pd.DataFrame(data)
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Marketing')
+    output.seek(0)
+
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name='marketing.xlsx',
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+
+@app.route('/exportar_reservas_usuario')
+@login_required
+def exportar_reservas_usuario():
+    # Obtener mes seleccionado
+    meses_anteriores = obtener_meses_anteriores()
+
+    selected_mes_str = request.args.get('mes', meses_anteriores[-1] if meses_anteriores else '')
+    today = datetime.now()
+    try:
+        start_date, end_date = _get_date_range(selected_mes_str)
+    except Exception:
+        start_date, end_date = today, today
+
+    reservas = Reserva.query.filter(
+        Reserva.usuario_id == current_user.id,
+        Reserva.fecha_venta >= start_date.strftime('%Y-%m-%d'),
+        Reserva.fecha_venta <= end_date.strftime('%Y-%m-%d')
+    ).all()
+
+    data = [{
+        'Fecha de venta': r.fecha_venta,
+        'Fecha de viaje': r.fecha_viaje,
+        'Producto': r.producto,
+        'Modalidad de pago': r.modalidad_pago,
+        'Nombre de pasajero': r.nombre_pasajero,
+        'Teléfono de pasajero': r.telefono_pasajero,
+        'Mail Pasajero': r.mail_pasajero,
+        'Precio venta total': r.precio_venta_total,
+        'Hotel neto': r.hotel_neto,
+        'Vuelo neto': r.vuelo_neto,
+        'Traslado neto': r.traslado_neto,
+        'Seguro neto': r.seguro_neto,
+        'Circuito Neto': r.circuito_neto,
+        'Crucero Neto': r.crucero_neto,
+        'Excursion Neto': r.excursion_neto,
+        'Paquete Neto': r.paquete_neto,
+        'Ganancia Total': r.ganancia_total,
+        'Comisión Ejecutivo': r.comision_ejecutivo,
+        'Comisión Agencia': r.comision_agencia,
+        'Bonos': r.bonos,
+        'Comentarios': r.comentarios,
+        'Localizadores': r.localizadores,
+        'Nombre ejecutivo': r.nombre_ejecutivo,
+        'Correo ejecutivo': r.correo_ejecutivo,
+        'Destino': r.destino,
+        'Estado de pago': r.estado_pago,
+        'Venta cobrada': r.venta_cobrada,
+        'Venta emitida': r.venta_emitida
+    } for r in reservas]
+
+    df = pd.DataFrame(data)
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Reservas')
+    output.seek(0)
+
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name='mis_reservas.xlsx',
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+
+@app.route('/exportar_panel_comisiones')
+@login_required
+@rol_required('admin', 'master')
+def exportar_panel_comisiones():
+    ejecutivo_id = request.args.get('ejecutivo_id', type=int)
+    rango_fechas_str = request.args.get('rango_fechas', 'ultimos_30_dias')
+
+    ejecutivos = Usuario.query.filter(Usuario.rol.in_(['usuario', 'admin'])).order_by(Usuario.nombre).all()
+    reservas_query = Reserva.query.join(Usuario)
+    if ejecutivo_id:
+        reservas_query = reservas_query.filter(Reserva.usuario_id == ejecutivo_id)
+    start_date, end_date = _get_date_range(rango_fechas_str)
+    reservas_query = reservas_query.filter(Reserva.fecha_venta >= start_date.strftime('%Y-%m-%d'),
+                                           Reserva.fecha_venta <= end_date.strftime('%Y-%m-%d'))
+    reservas = reservas_query.order_by(Reserva.fecha_venta.desc()).all()
+
+    data = []
+    for reserva in reservas:
+        comision_ejecutivo_porcentaje = safe_decimal(reserva.usuario.comision) / Decimal('100.0')
+        total_neto = (
+            reserva.hotel_neto +
+            reserva.vuelo_neto +
+            reserva.traslado_neto +
+            reserva.seguro_neto +
+            reserva.circuito_neto +
+            reserva.crucero_neto +
+            reserva.excursion_neto +
+            reserva.paquete_neto
+        )
+        ganancia_total = reserva.precio_venta_total - total_neto
+        comision_ejecutivo = ganancia_total * comision_ejecutivo_porcentaje
+        comision_agencia = ganancia_total - comision_ejecutivo
+        bonos = reserva.bonos or 0.0
+        
+        data.append({
+            'Precio Venta Total': reserva.precio_venta_total,
+            'Hotel Neto': reserva.hotel_neto,
+            'Vuelo Neto': reserva.vuelo_neto,
+            'Traslado Neto': reserva.traslado_neto,
+            'Seguro Neto': reserva.seguro_neto,
+            'Circuito Neto': reserva.circuito_neto,
+            'Crucero Neto': reserva.crucero_neto,
+            'Excursion Neto': reserva.excursion_neto,
+            'Paquete Neto': reserva.paquete_neto,
+            'Bonos': bonos,
+            'Ganancia Total': ganancia_total,
+            'Comision Ejecutivo': comision_ejecutivo,
+            'Comision Agencia': comision_agencia
+        })
+
+    # Obtener nombre del ejecutivo para el archivo
+    nombre_archivo = 'comisiones'
+    if ejecutivo_id:
+        ejecutivo = Usuario.query.get(ejecutivo_id)
+        if ejecutivo:
+            nombre_archivo = f"{ejecutivo.nombre.lower()}comision"
+    
+    output = io.BytesIO()
+    df = pd.DataFrame(data)
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Panel Comisiones')
+    output.seek(0)
+
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=f'{nombre_archivo}.xlsx',
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+
+if __name__ == '__main__':
+    app.run(debug=True)

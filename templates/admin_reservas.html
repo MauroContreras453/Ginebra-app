@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Panel de Administración</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="../statics/admin_reservas.css" />
+</head>
+
+<body>
+  <!-- NAVBAR PRINCIPAL -->
+  <nav class="navbar-custom d-flex justify-content-between align-items-center px-4">
+    <div></div>
+    <div class="nav-links d-flex gap-2 align-items-center">
+
+      <a href="admin_panel.html" class="btn btn-custom">Home</a>
+
+      <!-- EMPRESAS -->
+      <div class="dropdown">
+        <button class="btn btn-custom dropdown-toggle" type="button" data-bs-toggle="dropdown">Empresas</button>
+        <ul class="dropdown-menu">
+          <li><a class="dropdown-item" href="nueva_empresa.html">Crear Empresa</a></li>
+          <li><a class="dropdown-item" href="empresas_asociadas.html">Empresas Asociadas</a></li>
+          <li><a class="dropdown-item" href="contabilidad_empresas.html">Contabilidad Empresas</a></li>
+        </ul>
+      </div>
+
+      <!-- GESTIÓN -->
+      <div class="dropdown">
+        <button class="btn btn-custom dropdown-toggle" type="button" data-bs-toggle="dropdown"
+          {% if not empresa_seleccionada or empresa_seleccionada.tiene_gestion != 'si' %}disabled{% endif %}>
+          Gestión
+        </button>
+        <ul class="dropdown-menu">
+          <li class="dropdown-submenu">
+            <a class="dropdown-item dropdown-toggle" href="#">Reservas</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="admin_reservas.html">Ver reservas</a></li>
+              <li><a class="dropdown-item" href="reservas.html">Crear reservas</a></li>
+            </ul>
+          </li>
+          <li class="dropdown-submenu">
+            <a class="dropdown-item dropdown-toggle" href="#">Finanzas empresa</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="estados_de_venta.html">Estados de venta</a></li>
+              <li><a class="dropdown-item" href="liquidaciones.html">Liquidaciones</a></li>
+              <li><a class="dropdown-item" href="balance_mensual.html">Balance mensual</a></li>
+            </ul>
+          </li>
+          <li class="dropdown-submenu">
+            <a class="dropdown-item dropdown-toggle" href="#">Reportes a Gerencia</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="reporte_detalle_ventas.html">Detalle Ventas</a></li>
+              <li><a class="dropdown-item" href="reporte_ventas_general_mensual.html">Ventas General</a></li>
+              <li><a class="dropdown-item" href="ranking_ejecutivos.html">Ranking Ejecutivos</a></li>
+            </ul>
+          </li>
+          <li class="dropdown-submenu">
+            <a class="dropdown-item dropdown-toggle" href="#">Ejecutivo/Cliente</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="control_gestion_clientes.html">Gestión Cliente</a></li>
+              <li><a class="dropdown-item" href="panel_comisiones.html">Panel Comisiones</a></li>
+              <li><a class="dropdown-item" href="marketing.html">Marketing</a></li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+
+      <!-- PRODUCTO -->
+      <div class="dropdown">
+        <button class="btn btn-custom dropdown-toggle" type="button" data-bs-toggle="dropdown"
+          {% if not empresa_seleccionada or empresa_seleccionada.tiene_producto != 'si' %}disabled{% endif %}>
+          Producto
+        </button>
+        <ul class="dropdown-menu">
+          <li><a class="dropdown-item" href="productos.html">Productos</a></li>
+          <li><a class="dropdown-item" href="contratos.html">Contratos</a></li>
+          <li><a class="dropdown-item" href="catalogos.html">Catálogo</a></li>
+        </ul>
+      </div>
+
+      <a href="login.html" class="btn btn-custom">Cerrar sesión</a>
+    </div>
+  </nav>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <div class="container-sm" style="margin-top: 140px; ">
+      <div class="d-flex justify-content-between align-items-center mt-4 mb-4">
+        <h2 class="mb-0">📋 Todas las Reservas - Panel Admin</h2>
+      </div>
+
+    <!-- Formulario de búsqueda -->
+    <form method="get" class="mb-4">
+      <div class="input-group">
+        <input type="text" class="form-control" name="search" placeholder="Buscar reservas..." value="{{ search_query or '' }}">
+        <button class="btn btn-custom" type="submit">Buscar</button>
+        {% if search_query %}
+          <a href="{{ url_for('admin_reservas') }}" class="btn btn-outline-light">Limpiar</a>
+        {% endif %}
+      </div>
+    </form>
+
+    <!-- Tabla de reservas -->
+    <table class="table table-bordered table-hover text-white align-middle">
+      <thead>
+        <tr>
+          <th>Usuario</th>
+          <th>Fecha venta</th>
+          <th>Fecha viaje</th>
+          <th>Producto</th>
+          <th>Nombre pasajero</th>
+          <th>Teléfono</th>
+          <th>Mail</th>
+          <th>Localizadores</th>
+          <th>Destino</th>
+          <th>Estado</th>
+          <th>Acción</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for reserva in reservas %}
+        <tr>
+          <td>{{ reserva.usuario.username }}</td>
+          <td>{{ reserva.fecha_venta }}</td>
+          <td>{{ reserva.fecha_viaje }}</td>
+          <td>{{ reserva.producto }}</td>
+          <td>{{ reserva.nombre_pasajero }}</td>
+          <td>{{ reserva.telefono_pasajero }}</td>
+          <td>{{ reserva.mail_pasajero }}</td>
+          <td>{{ reserva.localizadores }}</td>
+          <td>{{ reserva.destino }}</td>
+          <td>
+            {% if reserva.estado_pago == 'Pagado' and reserva.venta_cobrada == 'Cobrada' and reserva.venta_emitida == 'Emitida' %}
+              <span class="badge bg-success">ok</span>
+            {% else %}
+              <span class="badge bg-danger">not ok</span>
+            {% endif %}
+          </td>
+          <td class="text-center">
+            {% if reserva.comprobante_venta %}
+              <a href="{{ url_for('descargar_comprobante', reserva_id=reserva.id) }}" target="_blank" title="Ver PDF" class="icon-btn me-2">
+                <i class="bi bi-file-earmark-pdf"></i>
+              </a>
+            {% endif %}
+            {% if current_user.rol in ['admin', 'master'] or reserva.usuario_id == current_user.id %}
+              <a href="{{ url_for('gestionar_reservas', editar=reserva.id) }}" title="Editar" class="icon-btn me-2">
+                <i class="bi bi-pencil-square"></i>
+              </a>
+            {% endif %}
+            {% if current_user.rol in ['admin', 'master'] %}
+              <form action="{{ url_for('eliminar_reserva', id=reserva.id) }}" method="post" class="d-inline" onsubmit="return confirm('¿Eliminar esta reserva?')">
+                <button type="submit" class="btn btn-link p-0 icon-btn" title="Eliminar">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="11" class="text-center">No hay reservas registradas.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <!-- Paginación -->
+    <nav aria-label="Page navigation">
+      <ul class="pagination justify-content-center">
+        {% if pagination.has_prev %}
+        <li class="page-item">
+          <a class="page-link" href="{{ url_for('admin_reservas', page=pagination.prev_num, search=search_query) }}">&laquo;</a>
+        </li>
+        {% endif %}
+        {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+          {% if page_num %}
+            <li class="page-item {% if pagination.page == page_num %}active{% endif %}">
+              <a class="page-link" href="{{ url_for('admin_reservas', page=page_num, search=search_query) }}">{{ page_num }}</a>
+            </li>
+          {% else %}
+            <li class="page-item disabled"><a class="page-link" href="#">...</a></li>
+          {% endif %}
+        {% endfor %}
+        {% if pagination.has_next %}
+        <li class="page-item">
+          <a class="page-link" href="{{ url_for('admin_reservas', page=pagination.next_num, search=search_query) }}">&raquo;</a>
+        </li>
+        {% endif %}
+      </ul>
+    </nav>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="mt-5 text-center">
+    <small>© 2025 Mi Aplicación de Reservas</small>
+  </footer>
+
+  <!-- BOOTSTRAP JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
