@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}
+  {% if proveedor %}Editar Proveedor{% else %}Nuevo Proveedor{% endif %} - Panel de Administración
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='nueva_empresa.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container mt-5" style="max-width: 900px;">
+  <h3 class="mb-4">
+    {% if proveedor %}
+      Editar Proveedor: {{ proveedor.nombre }}
+    {% else %}
+      Nuevo Proveedor
+    {% endif %}
+  </h3>
+  <form method="POST">
+    
+    <div class="mb-3">
+      <label for="nombre" class="form-label">Nombre <span class="text-danger">*</span></label>
+      <input type="text" class="form-control form-control-sm" id="nombre" name="nombre" 
+             value="{{ proveedor.nombre if proveedor else '' }}" required>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6 mb-3">
+        <label for="pais_ciudad" class="form-label">País/Ciudad</label>
+        <input type="text" class="form-control form-control-sm" id="pais_ciudad" name="pais_ciudad" 
+               value="{{ proveedor.pais_ciudad if proveedor else '' }}">
+      </div>
+      <div class="col-md-6 mb-3">
+        <label for="tipo_proveedor" class="form-label">Tipo de Proveedor</label>
+        <select class="form-select form-select-sm" id="tipo_proveedor" name="tipo_proveedor">
+          <option value="">Seleccionar tipo</option>
+          <option value="Hotel" {% if proveedor and proveedor.tipo_proveedor == 'Hotel' %}selected{% endif %}>Hotel</option>
+          <option value="Aerolínea" {% if proveedor and proveedor.tipo_proveedor == 'Aerolínea' %}selected{% endif %}>Aerolínea</option>
+          <option value="Transporte" {% if proveedor and proveedor.tipo_proveedor == 'Transporte' %}selected{% endif %}>Transporte</option>
+          <option value="Tours" {% if proveedor and proveedor.tipo_proveedor == 'Tours' %}selected{% endif %}>Tours</option>
+          <option value="Seguro" {% if proveedor and proveedor.tipo_proveedor == 'Seguro' %}selected{% endif %}>Seguro</option>
+          <option value="Otro" {% if proveedor and proveedor.tipo_proveedor == 'Otro' %}selected{% endif %}>Otro</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <label for="direccion" class="form-label">Dirección</label>
+      <input type="text" class="form-control form-control-sm" id="direccion" name="direccion" 
+             value="{{ proveedor.direccion if proveedor else '' }}">
+    </div>
+
+    <div class="row">
+      <div class="col-md-6 mb-3">
+        <label for="servicio" class="form-label">Servicio</label>
+        <textarea class="form-control form-control-sm" id="servicio" name="servicio" rows="3" 
+                  placeholder="Descripción de servicios">{{ proveedor.servicio if proveedor else '' }}</textarea>
+      </div>
+      <div class="col-md-6 mb-3">
+        <label for="donde_opera" class="form-label">Donde Opera</label>
+        <input type="text" class="form-control form-control-sm" id="donde_opera" name="donde_opera" 
+               value="{{ proveedor.donde_opera if proveedor else '' }}" placeholder="Países o ciudades">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-4 mb-3">
+        <label for="contacto_principal_nombre" class="form-label">Nombre Contacto</label>
+        <input type="text" class="form-control form-control-sm" id="contacto_principal_nombre" name="contacto_principal_nombre" 
+               value="{{ proveedor.contacto_principal_nombre if proveedor else '' }}">
+      </div>
+      <div class="col-md-4 mb-3">
+        <label for="contacto_principal_email" class="form-label">Email Contacto</label>
+        <input type="email" class="form-control form-control-sm" id="contacto_principal_email" name="contacto_principal_email" 
+               value="{{ proveedor.contacto_principal_email if proveedor else '' }}">
+      </div>
+      <div class="col-md-4 mb-3">
+        <label for="contacto_principal_telefono" class="form-label">Teléfono Contacto</label>
+        <input type="text" class="form-control form-control-sm" id="contacto_principal_telefono" name="contacto_principal_telefono" 
+               value="{{ proveedor.contacto_principal_telefono if proveedor else '' }}">
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <label for="condiciones_comerciales" class="form-label">Condiciones Comerciales</label>
+      <textarea class="form-control form-control-sm" id="condiciones_comerciales" name="condiciones_comerciales" rows="3" 
+                placeholder="Términos y condiciones comerciales">{{ proveedor.condiciones_comerciales if proveedor else '' }}</textarea>
+    </div>
+
+    <div class="row">
+      <div class="col-md-4 mb-3">
+        <label for="ultima_negociacion" class="form-label">Última Negociación</label>
+        <input type="date" class="form-control form-control-sm" id="ultima_negociacion" name="ultima_negociacion" 
+               value="{{ proveedor.ultima_negociacion.strftime('%Y-%m-%d') if proveedor and proveedor.ultima_negociacion else '' }}">
+      </div>
+      <div class="col-md-4 mb-3">
+        <label for="fecha_vigencia" class="form-label">Fecha de Vigencia</label>
+        <input type="date" class="form-control form-control-sm" id="fecha_vigencia" name="fecha_vigencia" 
+               value="{{ proveedor.fecha_vigencia.strftime('%Y-%m-%d') if proveedor and proveedor.fecha_vigencia else '' }}">
+      </div>
+      <div class="col-md-4 mb-3">
+        <label for="estado" class="form-label">Estado</label>
+        <select class="form-select form-select-sm" id="estado" name="estado">
+          <option value="Activo" {% if proveedor and proveedor.estado == 'Activo' %}selected{% endif %}>Activo</option>
+          <option value="Inactivo" {% if proveedor and proveedor.estado == 'Inactivo' %}selected{% endif %}>Inactivo</option>
+        </select>
+      </div>
+    </div>
+
+    {% if current_user.rol in ['admin', 'master'] %}
+    <div class="mb-3">
+      <label for="empresa_id" class="form-label">Empresa <span class="text-danger">*</span></label>
+      <select class="form-select form-select-sm" id="empresa_id" name="empresa_id" required>
+        <option value="">Seleccionar empresa...</option>
+        {% for empresa in empresas %}
+        <option value="{{ empresa.id }}" 
+                {% if proveedor and proveedor.empresa_id == empresa.id %}selected{% endif %}>
+          {{ empresa.nombre }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+
+    <div class="d-grid">
+      <button type="submit" class="btn btn-custom btn-sm">
+        {% if proveedor %}Actualizar{% else %}Crear{% endif %} Proveedor
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %} 

@@ -1,5 +1,5 @@
 import os
-from app import app, db, Usuario
+from Ginebra import app, db, Usuario
 
 with app.app_context():
     if not Usuario.query.filter_by(username='mcontreras').first():

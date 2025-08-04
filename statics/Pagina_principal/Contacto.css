@@ -6,7 +6,7 @@ html, body {
     font-family: 'Segoe UI', sans-serif;
     background-color: #00264d;
 }
- 
+  
 /* Barra de navegación */
 .navbar-custom {
     position: fixed;
@@ -93,7 +93,7 @@ html, body {
 /* Columna imagen (40%) */
 .image-column {
     flex: 0 0 40%;
-    background-image: url('../../image/Gestion.jpg');
+    background-image: url('../image/Gestion.jpg');
     background-size: cover;
     background-position: center;
 }

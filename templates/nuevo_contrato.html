@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}
+  {% if contrato %}Editar Contrato{% else %}Nuevo Contrato{% endif %} - Panel de Administración
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='nueva_empresa.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container mt-5" style="max-width: 900px;">
+  <h3 class="mb-4">
+    {% if contrato %}
+      Editar Contrato: {{ contrato.nombre }}
+    {% else %}
+      Nuevo Contrato
+    {% endif %}
+  </h3>
+  <form method="POST" enctype="multipart/form-data">
+    
+    <div class="mb-3">
+      <label for="nombre" class="form-label">Nombre del Contrato <span class="text-danger">*</span></label>
+      <input type="text" class="form-control form-control-sm" id="nombre" name="nombre" 
+             value="{{ contrato.nombre if contrato else '' }}" required>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6 mb-3">
+        <label for="proveedor_id" class="form-label">Proveedor <span class="text-danger">*</span></label>
+        <select class="form-select form-select-sm" id="proveedor_id" name="proveedor_id" required>
+          <option value="">Seleccionar proveedor...</option>
+          {% for proveedor in proveedores %}
+          <option value="{{ proveedor.id }}" 
+                  {% if contrato and contrato.proveedor_id == proveedor.id %}selected{% endif %}>
+            {{ proveedor.nombre }} - {{ proveedor.empresa.nombre if proveedor.empresa else 'N/A' }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-6 mb-3">
+        <label for="tipo_contrato" class="form-label">Tipo de Contrato</label>
+        <select class="form-select form-select-sm" id="tipo_contrato" name="tipo_contrato">
+          <option value="">Seleccionar tipo</option>
+          <option value="Anual" {% if contrato and contrato.tipo_contrato == 'Anual' %}selected{% endif %}>Anual</option>
+          <option value="Temporal" {% if contrato and contrato.tipo_contrato == 'Temporal' %}selected{% endif %}>Temporal</option>
+          <option value="Por Proyecto" {% if contrato and contrato.tipo_contrato == 'Por Proyecto' %}selected{% endif %}>Por Proyecto</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <label for="descripcion" class="form-label">Descripción</label>
+      <textarea class="form-control form-control-sm" id="descripcion" name="descripcion" rows="3" 
+                placeholder="Descripción del contrato">{{ contrato.descripcion if contrato else '' }}</textarea>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6 mb-3">
+        <label for="fecha_inicio" class="form-label">Fecha de Inicio</label>
+        <input type="date" class="form-control form-control-sm" id="fecha_inicio" name="fecha_inicio" 
+               value="{{ contrato.fecha_inicio.strftime('%Y-%m-%d') if contrato and contrato.fecha_inicio else '' }}">
+      </div>
+      <div class="col-md-6 mb-3">
+        <label for="fecha_fin" class="form-label">Fecha de Fin</label>
+        <input type="date" class="form-control form-control-sm" id="fecha_fin" name="fecha_fin" 
+               value="{{ contrato.fecha_fin.strftime('%Y-%m-%d') if contrato and contrato.fecha_fin else '' }}">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6 mb-3">
+        <label for="monto" class="form-label">Monto</label>
+        <input type="number" step="0.01" class="form-control form-control-sm" id="monto" name="monto" 
+               value="{{ contrato.monto if contrato else '' }}" placeholder="0.00">
+      </div>
+      <div class="col-md-6 mb-3">
+        <label for="estado" class="form-label">Estado</label>
+        <select class="form-select form-select-sm" id="estado" name="estado">
+          <option value="Activo" {% if contrato and contrato.estado == 'Activo' %}selected{% endif %}>Activo</option>
+          <option value="Inactivo" {% if contrato and contrato.estado == 'Inactivo' %}selected{% endif %}>Inactivo</option>
+          <option value="Vencido" {% if contrato and contrato.estado == 'Vencido' %}selected{% endif %}>Vencido</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <label for="archivo_pdf" class="form-label">Archivo PDF del Contrato</label>
+      <input type="file" class="form-control form-control-sm" id="archivo_pdf" name="archivo_pdf" accept=".pdf">
+      {% if contrato and contrato.archivo_pdf %}
+      <div class="mt-2">
+        <small class="text-muted">Archivo actual: {{ contrato.archivo_pdf }}</small>
+        <a href="{{ url_for('ver_contrato_pdf', id=contrato.id) }}" target="_blank" class="btn btn-sm btn-outline-primary ms-2">Ver PDF</a>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if current_user.rol in ['admin', 'master'] %}
+    <div class="mb-3">
+      <label for="empresa_id" class="form-label">Empresa <span class="text-danger">*</span></label>
+      <select class="form-select form-select-sm" id="empresa_id" name="empresa_id" required>
+        <option value="">Seleccionar empresa...</option>
+        {% for empresa in empresas %}
+        <option value="{{ empresa.id }}" 
+                {% if contrato and contrato.empresa_id == empresa.id %}selected{% endif %}>
+          {{ empresa.nombre }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+
+    <div class="d-grid">
+      <button type="submit" class="btn btn-custom btn-sm">
+        {% if contrato %}Actualizar{% else %}Crear{% endif %} Contrato
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}

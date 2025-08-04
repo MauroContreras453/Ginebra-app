@@ -1,200 +1,31 @@
 /* ===================================== */
-/*           VARIABLES CSS               */
+/*     NUEVA EMPRESA - ESTILOS ESPECÍFICOS   */
 /* ===================================== */
-:root {
-  --primary-bg-color: #003366;
-  --secondary-bg-color: #002244;
-  --accent-color: #ff6600;
-  --text-color: #fff;
-  --hover-color: #e65c00;
-  --light-hover-color: #ffcc99;
-}
 
-/* ===================================== */
-/*           ESTILO GENERAL              */
-/* ===================================== */
-body {
-  background-color: var(--primary-bg-color);
-  color: var(--text-color);
-  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  margin: 0;
-  padding: 0;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-a {
-  color: var(--text-color);
-  text-decoration: none; /* Elimina el subrayado por defecto */
-}
-
-a:hover {
-  color: var(--light-hover-color);
-}
-
-form {
-  display: inline; /* Mantiene el comportamiento original si es necesario */
-}
-
-/* ===================================== */
-/*           NAVBAR FIJA                 */
-/* ===================================== */
-.navbar-custom {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100px;
-  z-index: 1050;
-  background-color: var(--secondary-bg-color);
-  color: var(--text-color);
-  padding: 10px 0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-}
-
-/* ===================================== */
-/*           BOTONES GLOBALES            */
-/* ===================================== */
-.btn-custom {
-  background-color: var(--accent-color) !important;
-  color: var(--text-color) !important;
-  border: none !important;
-  min-width: 120px;
-  border-radius: 4px;
-  padding: 8px 0;
-  margin: 0 2px;
-  font-weight: 500;
-  text-align: center;
-  transition: background 0.2s, color 0.2s;
-}
-
-.btn-custom:hover,
-.btn-custom:focus {
-  background-color: var(--hover-color) !important;
-  color: var(--text-color) !important;
-}
-
-/* Botones secundarios (si se usan) */
-.btn-outline-light {
-  color: var(--text-color);
-  border-color: var(--text-color);
-}
-
-.btn-outline-light:hover {
-  background-color: var(--text-color);
-  color: var(--primary-bg-color);
-}
-
-/* Estilo para botones deshabilitados */
-.btn[disabled],
-.btn:disabled {
-  opacity: 0.5;
-  pointer-events: none;
-}
-
-/* ===================================== */
-/*           CONTENIDO PRINCIPAL         */
-/* ===================================== */
+/* Estilos específicos para el formulario de nueva empresa */
 .container {
-  margin-top: 120px !important; /* Ajusta para la altura del navbar fijo */
-  padding: 3rem 0;
-  flex-grow: 1; /* Permite que el contenido principal ocupe el espacio restante */
+  max-width: 900px;
 }
 
-h2 {
-  margin-bottom: 2rem;
-  color: var(--accent-color);
-  font-weight: 600;
+/* Override para espaciado específico del formulario */
+.mb-4 {
+  margin-bottom: 2rem !important;
 }
 
-h3 { /* Añadido para el título del formulario */
-  margin-bottom: 1.5rem;
-  color: var(--accent-color);
-  font-weight: 600;
+/* Ajustes específicos para inputs del formulario */
+.form-control-sm,
+.form-select-sm {
+  font-size: 0.875rem;
+  padding: 0.375rem 0.75rem;
 }
 
-h4 {
-  margin-bottom: 1.5rem;
-  color: var(--text-color);
+/* Botón de envío específico */
+.d-grid .btn {
+  padding: 0.75rem;
+  font-weight: 500;
 }
 
-/* ===================================== */
-/*           FOOTER                      */
-/* ===================================== */
-footer {
-  width: 100vw;
-  background-color: var(--secondary-bg-color);
-  color: var(--text-color);
-  text-align: center;
-  padding: 1rem 0;
-  z-index: 100;
-  margin-top: auto; /* Empuja el footer al final de la página */
-}
-
-/* ===================================== */
-/*           TOOLBAR SECUNDARIA          */
-/* ===================================== */
-.admin-toolbar {
-  position: sticky;
-  top: 100px; /* Debajo del navbar principal */
-  z-index: 1040;
-  background: var(--secondary-bg-color);
-  padding: 12px 0;
-  margin-bottom: 2rem;
-  border-bottom: 1px solid var(--accent-color);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-}
-
-/* ===================================== */
-/*           DROPDOWNS ANIDADOS          */
-/* ===================================== */
-.dropdown-submenu {
-  position: relative;
-  min-width: 150px;
-}
-
-.dropdown-submenu > .dropdown-menu {
-  position: absolute;
-  top: 0;
-  left: 100%;
-  margin: 0;
-  min-width: 150px;
-  display: none;
-  background-color: var(--text-color);
-  border: 1px solid var(--accent-color);
-  border-radius: 0 0.25rem 0.25rem 0.25rem;
-}
-
-.dropdown-submenu:hover > .dropdown-menu,
-.dropdown-submenu:focus-within > .dropdown-menu {
-  display: block;
-}
-
-/* Estilo global de menú desplegable */
-.dropdown-menu {
-  width: 200px; /* Asegura ancho uniforme del menú */
-  min-width: unset;
-  box-sizing: border-box;
-}
-
-/* Ítems del menú desplegable */
-.dropdown-menu .dropdown-item {
-  background-color: var(--text-color) !important;
-  color: var(--primary-bg-color) !important;
-  white-space: nowrap;
-  padding: 0.375rem 1rem;
-  font-weight: 400 !important;
-  text-align: left !important;
-  justify-content: flex-start !important;
-  max-width: 190px !important;
-  min-width: auto !important;
-  width: 100% !important;
-  box-sizing: border-box;
-}
-
-.dropdown-item:hover,
-.dropdown-item:focus {
-  background-color: var(--accent-color) !important;
-  color: var(--text-color) !important;
+/* Ajustes para el contenedor del formulario */
+.container.mt-5 {
+  margin-top: 0px !important;
 }

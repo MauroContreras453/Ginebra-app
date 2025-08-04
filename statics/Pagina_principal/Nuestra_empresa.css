@@ -6,7 +6,7 @@ html, body {
     font-family: 'Segoe UI', sans-serif;
     background-color: #00264d;
 }
- 
+  
 /* Barra de navegación */
 .navbar-custom {
     position: fixed;
@@ -91,7 +91,7 @@ html, body {
 .image-box-top {
     height: 50%;
     width: 100%;
-    background-image: url('../../image/Valores.jpg'); /* Ajustar ruta */
+    background-image: url('../image/Valores.jpg');
     background-size: cover;
     background-position: center;
     border-radius: 10px 10px 0 0;

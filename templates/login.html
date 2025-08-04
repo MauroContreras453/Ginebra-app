@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <title>Iniciar sesión</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
-    <link rel="stylesheet" href="../statics/login.css" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='login.css') }}" />
   </head>
 
   <body class="d-flex flex-column min-vh-100">
@@ -17,12 +17,12 @@
             <p class="subtitulo">Gestión de productos y ejecutivos</p>
         </div>
         <div class="nav-links d-flex gap-3">
-            <a href="Pagina_principal/home.html" class="nav-btn">Home</a>
-            <a href="Pagina_principal/Nuestra_empresa.html" class="nav-btn">Nuestra Empresa</a>
-            <a href="Pagina_principal/Servicios.html" class="nav-btn">Servicios</a>
-            <a href="Pagina_principal/Clientes.html" class="nav-btn">Clientes</a>
-            <a href="Pagina_principal/Soporte.html" class="nav-btn">Soporte</a>
-            <a href="Pagina_principal/contacto.html" class="nav-btn">Contacto</a>
+            <a href="{{ url_for('home') }}" class="nav-btn">Home</a>
+            <a href="{{ url_for('nuestra_empresa') }}" class="nav-btn">Nuestra Empresa</a>
+            <a href="{{ url_for('servicios') }}" class="nav-btn">Servicios</a>
+            <a href="{{ url_for('clientes') }}" class="nav-btn">Clientes</a>
+            <a href="{{ url_for('soporte') }}" class="nav-btn">Soporte</a>
+            <a href="{{ url_for('contacto') }}" class="nav-btn">Contacto</a>
             <a href="{{ url_for('login') }}" class="btn btn-login">Iniciar sesión</a>
         </div>
     </nav>
@@ -94,3 +94,4 @@
   </body>
 </html>
 
+ 

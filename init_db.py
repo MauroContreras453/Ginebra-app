@@ -1,4 +1,4 @@
-from app import db, Usuario, app
+from Ginebra import db, Usuario, app
 
 with app.app_context():
     db.drop_all()

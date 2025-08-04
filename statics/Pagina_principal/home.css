@@ -5,7 +5,7 @@ body, html {
     height: 100%;
     font-family: 'Segoe UI', sans-serif;
 }
- 
+  
 /* Barra de navegación */
 .navbar-custom {
     height: 80px;
@@ -54,7 +54,7 @@ body, html {
 
 /* Imagen de fondo */
 .inicio-container {
-    background-image: url('../../image/Ginebra.jpg');
+    background-image: url('../image/Ginebra.jpg');
     background-size: cover;
     background-position: center;
     position: relative;

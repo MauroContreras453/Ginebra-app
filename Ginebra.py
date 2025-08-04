@@ -17,7 +17,7 @@ from flask_migrate import Migrate
 # =====================
 # CONFIGURACIÓN INICIAL
 # =====================
-app = Flask(__name__)
+app = Flask(__name__, static_folder='statics')
 app.secret_key = os.getenv('SECRET_KEY', 'clave_secreta_segura')
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///' + os.path.join(basedir, 'usuarios.db'))
@@ -236,6 +236,11 @@ class Factura(db.Model):
 def load_user(user_id):
     return Usuario.query.get(int(user_id))
 
+@app.context_processor
+def inject_global_functions():
+    """Hace funciones disponibles en todas las plantillas"""
+    return dict(ruta_inicio_por_rol=ruta_inicio_por_rol)
+
 def rol_required(*roles):
     def decorator(f):
         @wraps(f)
@@ -272,6 +277,15 @@ def empresa_tiene_productos_required(f):
 # =====================
 # FUNCIONES AUXILIARES
 # =====================
+def obtener_nombre_mes(numero_mes):
+    """Convierte número de mes a nombre en español"""
+    meses = {
+        1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril',
+        5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto',
+        9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'
+    }
+    return meses.get(numero_mes, 'Mes desconocido')
+
 def puede_editar_reserva(reserva):
     return current_user.rol in ('master', 'admin', 'controling') or reserva.usuario_id == current_user.id
 
@@ -1057,6 +1071,43 @@ def calcular_comisiones(reserva, usuario):
 # =====================
 # RUTAS DE FLASK
 # =====================
+@app.route('/')
+def index():
+    """Ruta raíz que redirige a home"""
+    return redirect(url_for('home'))
+
+# =====================
+# PÁGINA PRINCIPAL
+# =====================
+@app.route('/home')
+def home():
+    """Página principal/inicio"""
+    return render_template('Pagina_principal/home.html')
+
+@app.route('/nuestra-empresa')
+def nuestra_empresa():
+    """Página sobre nuestra empresa"""
+    return render_template('Pagina_principal/Nuestra_empresa.html')
+
+@app.route('/servicios')
+def servicios():
+    """Página de servicios"""
+    return render_template('Pagina_principal/Servicios.html')
+
+@app.route('/clientes')
+def clientes():
+    """Página de clientes"""
+    return render_template('Pagina_principal/Clientes.html')
+
+@app.route('/contacto')
+def contacto():
+    """Página de contacto"""
+    return render_template('Pagina_principal/Contacto.html')
+
+@app.route('/soporte')
+def soporte():
+    """Página de soporte"""
+    return render_template('Pagina_principal/Soporte.html')
 
 # =====================
 # LOGIN DE USUARIOS
@@ -1082,7 +1133,6 @@ def admin_panel():
     if empresa_id:
         empresa_seleccionada = Empresa.query.get(empresa_id)
     return render_template('admin_panel.html', usuarios=usuarios, empresas=empresas, empresa_seleccionada=empresa_seleccionada)
-
 
 @app.route('/login/controling')
 @login_required
@@ -1224,20 +1274,202 @@ def seleccionar_empresa():
         flash('Por favor selecciona una empresa.', 'danger')
     return redirect(url_for('admin_panel'))
 
-@app.route('/crear_factura', methods=['POST'])
-def crear_factura():
-    empresa_id = request.form['empresa_id']
-    mes = request.form['mes']
-    monto = request.form['monto']
-    estado = request.form['estado']
-    fecha_pago = request.form.get('fecha_pago')
-    metodo = request.form.get('metodo')
-    observaciones = request.form.get('observaciones')
+@app.route('/admin/empresas')
+@login_required
+@rol_required('admin', 'master')
+def empresas_asociadas():
+    """Página para ver todas las empresas asociadas"""
+    empresas = Empresa.query.all()
+    return render_template('empresas_asociadas.html', empresas=empresas)
 
-    # Guardar en base de datos aquí
-    # ...
+@app.route('/admin/empresas/editar/<int:id>', methods=['GET', 'POST'])
+@login_required
+@rol_required('admin', 'master')
+def editar_empresa(id):
+    """Editar una empresa existente"""
+    empresa = Empresa.query.get_or_404(id)
+    if request.method == 'POST':
+        empresa.nombre = request.form['nombre']
+        empresa.representante = request.form['representante']
+        empresa.telefono = request.form['telefono']
+        empresa.correo = request.form['correo']
+        empresa.direccion = request.form['direccion']
+        empresa.razon_social = request.form['razon_social']
+        empresa.tiene_gestion = request.form['tiene_gestion']
+        empresa.tiene_productos = request.form['tiene_productos']
+        
+        db.session.commit()
+        flash('Empresa actualizada correctamente.', 'success')
+        return redirect(url_for('empresas_asociadas'))
+    
+    return render_template('nueva_empresa.html', empresa=empresa)
 
-    return redirect(url_for('contabilidad_empresas.html'))
+@app.route('/admin/empresas/eliminar/<int:id>', methods=['POST'])
+@login_required
+@rol_required('admin', 'master')
+def eliminar_empresa(id):
+    """Eliminar una empresa"""
+    empresa = Empresa.query.get_or_404(id)
+    
+    # Verificar si la empresa tiene usuarios asociados
+    if empresa.usuarios:
+        flash('No se puede eliminar la empresa porque tiene usuarios asociados.', 'danger')
+        return redirect(url_for('empresas_asociadas'))
+    
+    # Verificar si la empresa tiene reservas asociadas
+    if empresa.reservas:
+        flash('No se puede eliminar la empresa porque tiene reservas asociadas.', 'danger')
+        return redirect(url_for('empresas_asociadas'))
+    
+    db.session.delete(empresa)
+    db.session.commit()
+    flash('Empresa eliminada correctamente.', 'success')
+    return redirect(url_for('empresas_asociadas'))
+
+@app.route('/admin/contabilidad')
+@login_required
+@rol_required('admin', 'master')
+def contabilidad_empresas():
+    """Página para gestionar la contabilidad de empresas"""
+    facturas = Factura.query.join(Empresa).all()
+    empresas = Empresa.query.all()
+    return render_template('contabilidad_empresas.html', facturas=facturas, empresas=empresas)
+
+@app.route('/admin/facturas/nueva', methods=['GET', 'POST'])
+@login_required
+@rol_required('admin', 'master')
+def nueva_factura():
+    """Crear una nueva factura"""
+    if request.method == 'POST':
+        empresa_id = request.form['empresa_id']
+        mes_str = request.form['mes']  # formato YYYY-MM
+        monto = safe_decimal(request.form['monto'])
+        estado = request.form['estado']
+        fecha_pago_str = request.form.get('fecha_pago', '').strip()
+        metodo_pago = request.form.get('metodo_pago', '').strip()
+        observaciones = request.form.get('observaciones', '').strip()
+        
+        # Convertir mes string a date (primer día del mes)
+        try:
+            mes_date = datetime.strptime(mes_str, '%Y-%m').date()
+        except ValueError:
+            flash('Formato de mes inválido.', 'danger')
+            return redirect(url_for('nueva_factura'))
+        
+        # Convertir fecha de pago si se proporciona
+        fecha_pago = None
+        if fecha_pago_str:
+            try:
+                fecha_pago = datetime.strptime(fecha_pago_str, '%Y-%m-%d').date()
+            except ValueError:
+                flash('Formato de fecha de pago inválido.', 'danger')
+                return redirect(url_for('nueva_factura'))
+        
+        factura = Factura(
+            empresa_id=empresa_id,
+            mes=mes_date,
+            monto=monto,
+            estado=estado,
+            fecha_pago=fecha_pago,
+            metodo_pago=metodo_pago,
+            observaciones=observaciones
+        )
+        
+        db.session.add(factura)
+        db.session.commit()
+        flash('Factura creada correctamente.', 'success')
+        return redirect(url_for('contabilidad_empresas'))
+    
+    empresas = Empresa.query.all()
+    return render_template('nueva_factura.html', empresas=empresas)
+
+@app.route('/admin/facturas/editar/<int:id>', methods=['GET', 'POST'])
+@login_required
+@rol_required('admin', 'master')
+def editar_factura(id):
+    """Editar una factura existente"""
+    factura = Factura.query.get_or_404(id)
+    
+    if request.method == 'POST':
+        factura.empresa_id = request.form['empresa_id']
+        mes_str = request.form['mes']
+        factura.monto = safe_decimal(request.form['monto'])
+        factura.estado = request.form['estado']
+        fecha_pago_str = request.form.get('fecha_pago', '').strip()
+        factura.metodo_pago = request.form.get('metodo_pago', '').strip()
+        factura.observaciones = request.form.get('observaciones', '').strip()
+        
+        # Convertir mes string a date
+        try:
+            factura.mes = datetime.strptime(mes_str, '%Y-%m').date()
+        except ValueError:
+            flash('Formato de mes inválido.', 'danger')
+            return redirect(url_for('editar_factura', id=id))
+        
+        # Convertir fecha de pago si se proporciona
+        if fecha_pago_str:
+            try:
+                factura.fecha_pago = datetime.strptime(fecha_pago_str, '%Y-%m-%d').date()
+            except ValueError:
+                flash('Formato de fecha de pago inválido.', 'danger')
+                return redirect(url_for('editar_factura', id=id))
+        else:
+            factura.fecha_pago = None
+        
+        db.session.commit()
+        flash('Factura actualizada correctamente.', 'success')
+        return redirect(url_for('contabilidad_empresas'))
+    
+    empresas = Empresa.query.all()
+    return render_template('nueva_factura.html', factura=factura, empresas=empresas)
+
+@app.route('/admin/facturas/eliminar/<int:id>', methods=['POST'])
+@login_required
+@rol_required('admin', 'master')
+def eliminar_factura(id):
+    """Eliminar una factura"""
+    factura = Factura.query.get_or_404(id)
+    db.session.delete(factura)
+    db.session.commit()
+    flash('Factura eliminada correctamente.', 'success')
+    return redirect(url_for('contabilidad_empresas'))
+
+@app.route('/exportar_empresas')
+@login_required
+@rol_required('admin', 'master')
+def exportar_empresas():
+    """Exportar lista de empresas a Excel"""
+    empresas = Empresa.query.all()
+    
+    data = [{
+        'ID': e.id,
+        'Nombre': e.nombre,
+        'Representante': e.representante,
+        'Teléfono': e.telefono,
+        'Correo': e.correo,
+        'Dirección': e.direccion,
+        'Razón Social': e.razon_social,
+        'Tiene Gestión': e.tiene_gestion,
+        'Tiene Productos': e.tiene_productos,
+        'Usuarios Asociados': len(e.usuarios),
+        'Reservas': len(e.reservas)
+    } for e in empresas]
+    
+    df = pd.DataFrame(data)
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name='Empresas', index=False)
+    
+    output.seek(0)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f'empresas_{timestamp}.xlsx'
+    
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=filename
+    )
 
 # =====================
 # ADMIN / RESERVAS
@@ -1305,6 +1537,301 @@ def marketing():
     rango_fechas_str = request.args.get('rango_fechas', 'ultimos_30_dias')
     contexto = obtener_datos_marketing(ejecutivo_id, rango_fechas_str)
     return render_template('marketing.html', **contexto)
+
+@app.route('/estados_de_venta')
+@login_required
+@rol_required('admin', 'master')
+def estados_de_venta():
+    """Página para ver estados de venta filtrados por mes de fecha de viaje"""
+    selected_mes_str = request.args.get('mes', '')
+    meses_anteriores = obtener_meses_anteriores()
+    
+    # Si no hay mes seleccionado, usar el mes actual
+    if not selected_mes_str and meses_anteriores:
+        selected_mes_str = meses_anteriores[-1]
+    
+    try:
+        # Convertir mes string a fechas
+        month_name, year_str = selected_mes_str.split(' ')
+        if month_name == 'enero':
+            month_num = 1
+        elif month_name == 'febrero':
+            month_num = 2
+        elif month_name == 'marzo':
+            month_num = 3
+        elif month_name == 'abril':
+            month_num = 4
+        elif month_name == 'mayo':
+            month_num = 5
+        elif month_name == 'junio':
+            month_num = 6
+        elif month_name == 'julio':
+            month_num = 7
+        elif month_name == 'agosto':
+            month_num = 8
+        elif month_name == 'septiembre':
+            month_num = 9
+        elif month_name == 'octubre':
+            month_num = 10
+        elif month_name == 'noviembre':
+            month_num = 11
+        elif month_name == 'diciembre':
+            month_num = 12
+        else:  # Fallback to current month
+            month_num = datetime.now().month
+            
+        year = int(year_str)
+        start_date = datetime(year, month_num, 1)
+        if month_num == 12:
+            end_date = datetime(year + 1, 1, 1) - timedelta(days=1)
+        else:
+            end_date = datetime(year, month_num + 1, 1) - timedelta(days=1)
+    except Exception:
+        # Si hay error, usar el mes actual
+        today = datetime.now()
+        start_date = datetime(today.year, today.month, 1)
+        if today.month == 12:
+            end_date = datetime(today.year + 1, 1, 1) - timedelta(days=1)
+        else:
+            end_date = datetime(today.year, today.month + 1, 1) - timedelta(days=1)
+        selected_mes_str = f"{today.strftime('%B')} {today.year}"
+
+    # Filtrar reservas por fecha de viaje (no fecha de venta)
+    reservas_query = Reserva.query.join(Usuario).filter(
+        Reserva.fecha_viaje >= start_date.strftime('%Y-%m-%d'),
+        Reserva.fecha_viaje <= end_date.strftime('%Y-%m-%d')
+    )
+    
+    reservas = reservas_query.order_by(Reserva.fecha_viaje.desc()).all()
+    
+    # Preparar datos para la tabla
+    estados_data = []
+    totales = {
+        'precio_venta_total': 0.0,
+        'precio_venta_neto': 0.0,
+        'comision_ejecutivo': 0.0,
+        'comision_agencia': 0.0
+    }
+    
+    for reserva in reservas:
+        # Calcular precio venta neto (precio total - comisiones)
+        comision_ejecutivo, comision_agencia, ganancia_total, _ = calcular_comisiones(reserva, reserva.usuario)
+        precio_venta_neto = reserva.precio_venta_total - comision_ejecutivo - comision_agencia
+        
+        estados_data.append({
+            'reserva_id': reserva.id,
+            'ejecutivo': reserva.nombre_ejecutivo or reserva.usuario.username if reserva.usuario else 'N/A',
+            'fecha_emitida': reserva.fecha_venta,  # Fecha cuando se emitió la reserva
+            'fecha_viaje': reserva.fecha_viaje,
+            'localizadores': reserva.localizadores,
+            'estado_pago': reserva.estado_pago or 'No definido',
+            'venta_cobrada': reserva.venta_cobrada or 'No definido',
+            'venta_emitida': reserva.venta_emitida or 'No definido',
+            'precio_venta_total': reserva.precio_venta_total,
+            'precio_venta_neto': precio_venta_neto,
+            'comision_ejecutivo': comision_ejecutivo,
+            'comision_agencia': comision_agencia
+        })
+        
+        # Sumar a los totales
+        totales['precio_venta_total'] += reserva.precio_venta_total
+        totales['precio_venta_neto'] += precio_venta_neto
+        totales['comision_ejecutivo'] += comision_ejecutivo
+        totales['comision_agencia'] += comision_agencia
+    
+    return render_template('estados_de_venta.html', 
+                         estados_data=estados_data,
+                         totales=totales,
+                         selected_mes_str=selected_mes_str,
+                         meses_anteriores=meses_anteriores)
+
+@app.route('/balance_mensual')
+@login_required
+@empresa_tiene_gestion_required
+def balance_mensual():
+    """Mostrar balance mensual filtrado por fecha de emisión"""
+    # Obtener el mes del parámetro
+    mes_param = request.args.get('mes', '')
+    
+    # Obtener lista de meses anteriores
+    fecha_actual = datetime.now()
+    meses_anteriores = []
+    for i in range(12):
+        fecha_mes = fecha_actual - timedelta(days=30*i)
+        mes_str = fecha_mes.strftime('%Y-%m')
+        mes_nombre = obtener_nombre_mes(fecha_mes.month)
+        meses_anteriores.append(f"{mes_str} ({mes_nombre})")
+    
+    # Si no se especifica mes, usar el actual
+    selected_mes_str = mes_param if mes_param else meses_anteriores[0]
+    
+    # Extraer año y mes
+    año_mes = selected_mes_str.split(' (')[0]
+    año, mes = map(int, año_mes.split('-'))
+    
+    # Obtener reservas del mes filtrado por fecha_emitida
+    reservas = Reserva.query.filter(
+        db.extract('year', Reserva.fecha_emitida) == año,
+        db.extract('month', Reserva.fecha_emitida) == mes,
+        Reserva.eliminado == False
+    ).all()
+    
+    # Preparar datos
+    balance_data = []
+    totales = {
+        'precio_venta_total': 0,
+        'precio_venta_neto': 0,
+        'comision_ejecutivo': 0,
+        'comision_agencia': 0
+    }
+    
+    for reserva in reservas:
+        # Cálculos de comisión (misma lógica que estados_de_venta)
+        precio_venta_neto = reserva.precio_venta_total * 0.81 if reserva.precio_venta_total else 0
+        comision_ejecutivo = precio_venta_neto * 0.03 if precio_venta_neto else 0
+        comision_agencia = (precio_venta_neto - comision_ejecutivo) * 0.02 if precio_venta_neto else 0
+        
+        balance_data.append({
+            'reserva_id': reserva.id,
+            'ejecutivo': reserva.ejecutivo or 'Sin asignar',
+            'fecha_emitida': reserva.fecha_emitida,
+            'fecha_viaje': reserva.fecha_viaje,
+            'localizadores': reserva.localizadores,
+            'estado_pago': reserva.estado_pago or 'No definido',
+            'venta_cobrada': reserva.venta_cobrada or 'No definido',
+            'venta_emitida': reserva.venta_emitida or 'No definido',
+            'precio_venta_total': reserva.precio_venta_total,
+            'precio_venta_neto': precio_venta_neto,
+            'comision_ejecutivo': comision_ejecutivo,
+            'comision_agencia': comision_agencia
+        })
+        
+        # Sumar a los totales
+        totales['precio_venta_total'] += reserva.precio_venta_total
+        totales['precio_venta_neto'] += precio_venta_neto
+        totales['comision_ejecutivo'] += comision_ejecutivo
+        totales['comision_agencia'] += comision_agencia
+    
+    return render_template('balance_mensual.html', 
+                         balance_data=balance_data,
+                         totales=totales,
+                         selected_mes_str=selected_mes_str,
+                         meses_anteriores=meses_anteriores)
+
+@app.route('/liquidaciones')
+@login_required
+@rol_required('admin', 'master')
+def liquidaciones():
+    """Mostrar liquidaciones filtradas por ejecutivo y fecha emitida"""
+    # Obtener parámetros
+    mes_param = request.args.get('mes', '')
+    ejecutivo_param = request.args.get('ejecutivo', '')
+    
+    # Obtener lista de meses anteriores
+    fecha_actual = datetime.now()
+    meses_anteriores = []
+    for i in range(12):
+        fecha_mes = fecha_actual - timedelta(days=30*i)
+        mes_str = fecha_mes.strftime('%Y-%m')
+        mes_nombre = obtener_nombre_mes(fecha_mes.month)
+        meses_anteriores.append(f"{mes_str} ({mes_nombre})")
+    
+    # Si no se especifica mes, usar el actual
+    selected_mes_str = mes_param if mes_param else meses_anteriores[0]
+    
+    # Extraer año y mes
+    año_mes = selected_mes_str.split(' (')[0]
+    año, mes = map(int, año_mes.split('-'))
+    
+    # Obtener ejecutivos disponibles
+    ejecutivos_disponibles = db.session.query(Reserva.ejecutivo).filter(
+        Reserva.ejecutivo.isnot(None),
+        Reserva.ejecutivo != '',
+        Reserva.eliminado == False
+    ).distinct().order_by(Reserva.ejecutivo).all()
+    ejecutivos_disponibles = [ej[0] for ej in ejecutivos_disponibles]
+    
+    # Construir consulta base
+    query = Reserva.query.filter(
+        db.extract('year', Reserva.fecha_emitida) == año,
+        db.extract('month', Reserva.fecha_emitida) == mes,
+        Reserva.eliminado == False
+    )
+    
+    # Filtrar por ejecutivo si se especifica
+    selected_ejecutivo = ejecutivo_param
+    if selected_ejecutivo:
+        query = query.filter(Reserva.ejecutivo == selected_ejecutivo)
+    
+    reservas = query.all()
+    
+    # Procesar datos
+    liquidaciones_data = []
+    totales = {
+        'precio_venta_total': 0,
+        'precio_venta_neto': 0,
+        'comision_ejecutivo': 0,
+        'comision_agencia': 0
+    }
+    
+    # Diccionario para resumen por ejecutivo
+    ejecutivos_resumen = {}
+    
+    for reserva in reservas:
+        # Cálculos de comisión
+        precio_venta_neto = reserva.precio_venta_total * 0.81 if reserva.precio_venta_total else 0
+        comision_ejecutivo = precio_venta_neto * 0.03 if precio_venta_neto else 0
+        comision_agencia = (precio_venta_neto - comision_ejecutivo) * 0.02 if precio_venta_neto else 0
+        
+        ejecutivo = reserva.ejecutivo or 'Sin asignar'
+        
+        liquidaciones_data.append({
+            'reserva_id': reserva.id,
+            'ejecutivo': ejecutivo,
+            'fecha_emitida': reserva.fecha_emitida,
+            'fecha_viaje': reserva.fecha_viaje,
+            'localizadores': reserva.localizadores,
+            'estado_pago': reserva.estado_pago or 'No definido',
+            'venta_cobrada': reserva.venta_cobrada or 'No definido',
+            'venta_emitida': reserva.venta_emitida or 'No definido',
+            'precio_venta_total': reserva.precio_venta_total,
+            'precio_venta_neto': precio_venta_neto,
+            'comision_ejecutivo': comision_ejecutivo,
+            'comision_agencia': comision_agencia
+        })
+        
+        # Sumar a los totales
+        totales['precio_venta_total'] += reserva.precio_venta_total
+        totales['precio_venta_neto'] += precio_venta_neto
+        totales['comision_ejecutivo'] += comision_ejecutivo
+        totales['comision_agencia'] += comision_agencia
+        
+        # Acumular para resumen por ejecutivo
+        if ejecutivo not in ejecutivos_resumen:
+            ejecutivos_resumen[ejecutivo] = {
+                'ejecutivo': ejecutivo,
+                'cantidad': 0,
+                'ventas_total': 0,
+                'comisiones_total': 0
+            }
+        
+        ejecutivos_resumen[ejecutivo]['cantidad'] += 1
+        ejecutivos_resumen[ejecutivo]['ventas_total'] += reserva.precio_venta_total
+        ejecutivos_resumen[ejecutivo]['comisiones_total'] += comision_ejecutivo
+    
+    # Convertir resumen a lista ordenada
+    ejecutivos_resumen_lista = sorted(ejecutivos_resumen.values(), 
+                                    key=lambda x: x['ventas_total'], 
+                                    reverse=True)
+    
+    return render_template('liquidaciones.html', 
+                         liquidaciones_data=liquidaciones_data,
+                         totales=totales,
+                         selected_mes_str=selected_mes_str,
+                         selected_ejecutivo=selected_ejecutivo,
+                         meses_anteriores=meses_anteriores,
+                         ejecutivos_disponibles=ejecutivos_disponibles,
+                         ejecutivos_resumen=ejecutivos_resumen_lista)
 
 # =====================
 # RESERVAS
@@ -1486,6 +2013,751 @@ def reservas_usuarios():
         total_ventas=total_ventas,
         total_comision_ejecutivo=total_comision_ejecutivo,
         pagination=reservas_paginated
+    )
+# =====================
+# PROVEEDORES
+# =====================
+@app.route('/proveedores')
+@login_required
+@rol_required('admin', 'master', 'controling')
+@empresa_tiene_productos_required
+def proveedores():
+    """Página para ver todos los proveedores"""
+    if current_user.rol == 'controling':
+        # Controling solo ve proveedores de su empresa
+        proveedores = Proveedor.query.filter_by(empresa_id=current_user.empresa_id).all()
+    else:
+        # Admin y master ven todos los proveedores
+        proveedores = Proveedor.query.all()
+    
+    return render_template('proveedores.html', proveedores=proveedores)
+
+@app.route('/proveedores/nuevo', methods=['GET', 'POST'])
+@login_required
+@rol_required('admin', 'master', 'controling')
+@empresa_tiene_productos_required
+def nuevo_proveedor():
+    """Crear un nuevo proveedor"""
+    if request.method == 'POST':
+        # Determinar empresa_id según el rol
+        if current_user.rol == 'controling':
+            empresa_id = current_user.empresa_id
+        else:
+            empresa_id = request.form.get('empresa_id')
+            if not empresa_id:
+                flash('Debe seleccionar una empresa.', 'danger')
+                return redirect(url_for('nuevo_proveedor'))
+        
+        proveedor = Proveedor(
+            nombre=request.form['nombre'].strip(),
+            pais_ciudad=request.form.get('pais_ciudad', '').strip(),
+            direccion=request.form.get('direccion', '').strip(),
+            tipo_proveedor=request.form.get('tipo_proveedor', '').strip(),
+            servicio=request.form.get('servicio', '').strip(),
+            contacto_principal_nombre=request.form.get('contacto_principal_nombre', '').strip(),
+            contacto_principal_email=request.form.get('contacto_principal_email', '').strip(),
+            contacto_principal_telefono=request.form.get('contacto_principal_telefono', '').strip(),
+            condiciones_comerciales=request.form.get('condiciones_comerciales', '').strip(),
+            donde_opera=request.form.get('donde_opera', '').strip(),
+            estado=request.form.get('estado', 'Activo').strip(),
+            empresa_id=empresa_id
+        )
+        
+        # Procesar fechas
+        if request.form.get('ultima_negociacion'):
+            try:
+                proveedor.ultima_negociacion = datetime.strptime(
+                    request.form['ultima_negociacion'], '%Y-%m-%d'
+                ).date()
+            except ValueError:
+                flash('Formato de fecha de última negociación inválido.', 'danger')
+                return redirect(url_for('nuevo_proveedor'))
+        
+        if request.form.get('fecha_vigencia'):
+            try:
+                proveedor.fecha_vigencia = datetime.strptime(
+                    request.form['fecha_vigencia'], '%Y-%m-%d'
+                ).date()
+            except ValueError:
+                flash('Formato de fecha de vigencia inválido.', 'danger')
+                return redirect(url_for('nuevo_proveedor'))
+        
+        db.session.add(proveedor)
+        db.session.commit()
+        flash('Proveedor creado correctamente.', 'success')
+        return redirect(url_for('proveedores'))
+    
+    # Para GET request
+    empresas = []
+    if current_user.rol in ['admin', 'master']:
+        empresas = Empresa.query.filter_by(tiene_productos=True).all()
+    
+    return render_template('nuevo_proveedor.html', empresas=empresas)
+
+@app.route('/proveedores/editar/<int:id>', methods=['GET', 'POST'])
+@login_required
+@rol_required('admin', 'master', 'controling')
+@empresa_tiene_productos_required
+def editar_proveedor(id):
+    """Editar un proveedor existente"""
+    proveedor = Proveedor.query.get_or_404(id)
+    
+    # Verificar permisos
+    if current_user.rol == 'controling' and proveedor.empresa_id != current_user.empresa_id:
+        flash('No autorizado para editar este proveedor.', 'danger')
+        return redirect(url_for('proveedores'))
+    
+    if request.method == 'POST':
+        proveedor.nombre = request.form['nombre'].strip()
+        proveedor.pais_ciudad = request.form.get('pais_ciudad', '').strip()
+        proveedor.direccion = request.form.get('direccion', '').strip()
+        proveedor.tipo_proveedor = request.form.get('tipo_proveedor', '').strip()
+        proveedor.servicio = request.form.get('servicio', '').strip()
+        proveedor.contacto_principal_nombre = request.form.get('contacto_principal_nombre', '').strip()
+        proveedor.contacto_principal_email = request.form.get('contacto_principal_email', '').strip()
+        proveedor.contacto_principal_telefono = request.form.get('contacto_principal_telefono', '').strip()
+        proveedor.condiciones_comerciales = request.form.get('condiciones_comerciales', '').strip()
+        proveedor.donde_opera = request.form.get('donde_opera', '').strip()
+        proveedor.estado = request.form.get('estado', 'Activo').strip()
+        
+        # Solo admin y master pueden cambiar la empresa
+        if current_user.rol in ['admin', 'master']:
+            empresa_id = request.form.get('empresa_id')
+            if empresa_id:
+                proveedor.empresa_id = empresa_id
+        
+        # Procesar fechas
+        if request.form.get('ultima_negociacion'):
+            try:
+                proveedor.ultima_negociacion = datetime.strptime(
+                    request.form['ultima_negociacion'], '%Y-%m-%d'
+                ).date()
+            except ValueError:
+                flash('Formato de fecha de última negociación inválido.', 'danger')
+                return redirect(url_for('editar_proveedor', id=id))
+        else:
+            proveedor.ultima_negociacion = None
+        
+        if request.form.get('fecha_vigencia'):
+            try:
+                proveedor.fecha_vigencia = datetime.strptime(
+                    request.form['fecha_vigencia'], '%Y-%m-%d'
+                ).date()
+            except ValueError:
+                flash('Formato de fecha de vigencia inválido.', 'danger')
+                return redirect(url_for('editar_proveedor', id=id))
+        else:
+            proveedor.fecha_vigencia = None
+        
+        db.session.commit()
+        flash('Proveedor actualizado correctamente.', 'success')
+        return redirect(url_for('proveedores'))
+    
+    # Para GET request
+    empresas = []
+    if current_user.rol in ['admin', 'master']:
+        empresas = Empresa.query.filter_by(tiene_productos=True).all()
+    
+    return render_template('nuevo_proveedor.html', proveedor=proveedor, empresas=empresas)
+
+@app.route('/proveedores/eliminar/<int:id>', methods=['POST'])
+@login_required
+@rol_required('admin', 'master', 'controling')
+@empresa_tiene_productos_required
+def eliminar_proveedor(id):
+    """Eliminar un proveedor"""
+    proveedor = Proveedor.query.get_or_404(id)
+    
+    # Verificar permisos
+    if current_user.rol == 'controling' and proveedor.empresa_id != current_user.empresa_id:
+        flash('No autorizado para eliminar este proveedor.', 'danger')
+        return redirect(url_for('proveedores'))
+    
+    # Verificar si el proveedor tiene contratos asociados
+    if hasattr(proveedor, 'contratos') and proveedor.contratos:
+        flash('No se puede eliminar el proveedor porque tiene contratos asociados.', 'danger')
+        return redirect(url_for('proveedores'))
+    
+    # Verificar si el proveedor tiene catálogos asociados
+    if hasattr(proveedor, 'catalogos') and proveedor.catalogos:
+        flash('No se puede eliminar el proveedor porque tiene catálogos asociados.', 'danger')
+        return redirect(url_for('proveedores'))
+    
+    db.session.delete(proveedor)
+    db.session.commit()
+    flash('Proveedor eliminado correctamente.', 'success')
+    return redirect(url_for('proveedores'))
+
+@app.route('/exportar_proveedores')
+@login_required
+@rol_required('admin', 'master', 'controling')
+@empresa_tiene_productos_required
+def exportar_proveedores():
+    """Exportar lista de proveedores a Excel"""
+    if current_user.rol == 'controling':
+        # Controling solo exporta proveedores de su empresa
+        proveedores = Proveedor.query.filter_by(empresa_id=current_user.empresa_id).all()
+    else:
+        # Admin y master exportan todos los proveedores
+        proveedores = Proveedor.query.all()
+    
+    data = [{
+        'ID': p.id,
+        'Nombre': p.nombre,
+        'País/Ciudad': p.pais_ciudad,
+        'Dirección': p.direccion,
+        'Tipo de Proveedor': p.tipo_proveedor,
+        'Servicio': p.servicio,
+        'Contacto Principal': p.contacto_principal_nombre,
+        'Email Contacto': p.contacto_principal_email,
+        'Teléfono Contacto': p.contacto_principal_telefono,
+        'Condiciones Comerciales': p.condiciones_comerciales,
+        'Donde Opera': p.donde_opera,
+        'Última Negociación': p.ultima_negociacion.strftime('%Y-%m-%d') if p.ultima_negociacion else '',
+        'Fecha Vigencia': p.fecha_vigencia.strftime('%Y-%m-%d') if p.fecha_vigencia else '',
+        'Estado': p.estado,
+        'Empresa': p.empresa.nombre if p.empresa else 'N/A'
+    } for p in proveedores]
+    
+    df = pd.DataFrame(data)
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name='Proveedores', index=False)
+    
+    output.seek(0)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f'proveedores_{timestamp}.xlsx'
+    
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=filename
+    )
+
+# =====================
+# CONTRATOS
+# =====================
+@app.route('/contratos')
+@login_required
+@rol_required('admin', 'master', 'controling', 'analista')
+@empresa_tiene_productos_required
+def contratos():
+    """Página para ver todos los contratos"""
+    if current_user.rol == 'controling':
+        # Controling solo ve contratos de proveedores de su empresa
+        contratos = Contrato.query.join(Proveedor).filter(Proveedor.empresa_id == current_user.empresa_id).all()
+    else:
+        # Admin, master y analista ven todos los contratos
+        contratos = Contrato.query.all()
+    
+    return render_template('contratos.html', contratos=contratos)
+
+@app.route('/contratos/nuevo', methods=['GET', 'POST'])
+@login_required
+@rol_required('admin', 'master', 'controling', 'analista')
+@empresa_tiene_productos_required
+def nuevo_contrato():
+    """Crear un nuevo contrato"""
+    if request.method == 'POST':
+        proveedor_id = request.form.get('proveedor_id')
+        if not proveedor_id:
+            flash('Debe seleccionar un proveedor.', 'danger')
+            return redirect(url_for('nuevo_contrato'))
+        
+        # Verificar que el proveedor pertenece a la empresa del usuario (para controling)
+        proveedor = Proveedor.query.get(proveedor_id)
+        if not proveedor:
+            flash('Proveedor no encontrado.', 'danger')
+            return redirect(url_for('nuevo_contrato'))
+        
+        if current_user.rol == 'controling' and proveedor.empresa_id != current_user.empresa_id:
+            flash('No autorizado para crear contratos con este proveedor.', 'danger')
+            return redirect(url_for('nuevo_contrato'))
+        
+        contrato = Contrato(
+            nombre=request.form['nombre'].strip(),
+            descripcion=request.form.get('descripcion', '').strip(),
+            estado=request.form.get('estado', 'Activo').strip(),
+            condiciones=request.form.get('condiciones', '').strip(),
+            proveedor_id=proveedor_id
+        )
+        
+        # Procesar fechas
+        if request.form.get('fecha_inicio'):
+            try:
+                contrato.fecha_inicio = datetime.strptime(
+                    request.form['fecha_inicio'], '%Y-%m-%d'
+                ).date()
+            except ValueError:
+                flash('Formato de fecha de inicio inválido.', 'danger')
+                return redirect(url_for('nuevo_contrato'))
+        
+        if request.form.get('fecha_fin'):
+            try:
+                contrato.fecha_fin = datetime.strptime(
+                    request.form['fecha_fin'], '%Y-%m-%d'
+                ).date()
+            except ValueError:
+                flash('Formato de fecha de fin inválido.', 'danger')
+                return redirect(url_for('nuevo_contrato'))
+        
+        db.session.add(contrato)
+        db.session.flush()  # Para obtener el ID
+        
+        # Manejar archivo PDF
+        file = request.files.get('archivo_pdf')
+        if file and file.filename:
+            nombre_archivo, contenido_pdf, error_mensaje = guardar_comprobante(file, contrato)
+            if error_mensaje:
+                flash(error_mensaje, 'danger')
+                return redirect(url_for('nuevo_contrato'))
+            elif nombre_archivo:
+                contrato.comprobante_venta = nombre_archivo
+                contrato.comprobante_pdf = contenido_pdf
+        
+        db.session.commit()
+        flash('Contrato creado correctamente.', 'success')
+        return redirect(url_for('contratos'))
+    
+    # Para GET request - obtener proveedores disponibles
+    if current_user.rol == 'controling':
+        proveedores = Proveedor.query.filter_by(empresa_id=current_user.empresa_id).all()
+    else:
+        proveedores = Proveedor.query.all()
+    
+    return render_template('nuevo_contrato.html', proveedores=proveedores)
+
+@app.route('/contratos/editar/<int:id>', methods=['GET', 'POST'])
+@login_required
+@rol_required('admin', 'master', 'controling', 'analista')
+@empresa_tiene_productos_required
+def editar_contrato(id):
+    """Editar un contrato existente"""
+    contrato = Contrato.query.get_or_404(id)
+    
+    # Verificar permisos
+    if current_user.rol == 'controling' and contrato.proveedor.empresa_id != current_user.empresa_id:
+        flash('No autorizado para editar este contrato.', 'danger')
+        return redirect(url_for('contratos'))
+    
+    if request.method == 'POST':
+        proveedor_id = request.form.get('proveedor_id')
+        if not proveedor_id:
+            flash('Debe seleccionar un proveedor.', 'danger')
+            return redirect(url_for('editar_contrato', id=id))
+        
+        # Verificar que el proveedor pertenece a la empresa del usuario (para controling)
+        proveedor = Proveedor.query.get(proveedor_id)
+        if current_user.rol == 'controling' and proveedor.empresa_id != current_user.empresa_id:
+            flash('No autorizado para asignar este proveedor.', 'danger')
+            return redirect(url_for('editar_contrato', id=id))
+        
+        contrato.nombre = request.form['nombre'].strip()
+        contrato.descripcion = request.form.get('descripcion', '').strip()
+        contrato.estado = request.form.get('estado', 'Activo').strip()
+        contrato.condiciones = request.form.get('condiciones', '').strip()
+        contrato.proveedor_id = proveedor_id
+        
+        # Procesar fechas
+        if request.form.get('fecha_inicio'):
+            try:
+                contrato.fecha_inicio = datetime.strptime(
+                    request.form['fecha_inicio'], '%Y-%m-%d'
+                ).date()
+            except ValueError:
+                flash('Formato de fecha de inicio inválido.', 'danger')
+                return redirect(url_for('editar_contrato', id=id))
+        else:
+            contrato.fecha_inicio = None
+        
+        if request.form.get('fecha_fin'):
+            try:
+                contrato.fecha_fin = datetime.strptime(
+                    request.form['fecha_fin'], '%Y-%m-%d'
+                ).date()
+            except ValueError:
+                flash('Formato de fecha de fin inválido.', 'danger')
+                return redirect(url_for('editar_contrato', id=id))
+        else:
+            contrato.fecha_fin = None
+        
+        # Manejar archivo PDF
+        file = request.files.get('archivo_pdf')
+        if file and file.filename:
+            nombre_archivo, contenido_pdf, error_mensaje = guardar_comprobante(file, contrato)
+            if error_mensaje:
+                flash(error_mensaje, 'danger')
+                return redirect(url_for('editar_contrato', id=id))
+            elif nombre_archivo:
+                contrato.comprobante_venta = nombre_archivo
+                contrato.comprobante_pdf = contenido_pdf
+        
+        db.session.commit()
+        flash('Contrato actualizado correctamente.', 'success')
+        return redirect(url_for('contratos'))
+    
+    # Para GET request - obtener proveedores disponibles
+    if current_user.rol == 'controling':
+        proveedores = Proveedor.query.filter_by(empresa_id=current_user.empresa_id).all()
+    else:
+        proveedores = Proveedor.query.all()
+    
+    return render_template('nuevo_contrato.html', contrato=contrato, proveedores=proveedores)
+
+@app.route('/contratos/eliminar/<int:id>', methods=['POST'])
+@login_required
+@rol_required('admin', 'master', 'controling', 'analista')
+@empresa_tiene_productos_required
+def eliminar_contrato(id):
+    """Eliminar un contrato"""
+    contrato = Contrato.query.get_or_404(id)
+    
+    # Verificar permisos
+    if current_user.rol == 'controling' and contrato.proveedor.empresa_id != current_user.empresa_id:
+        flash('No autorizado para eliminar este contrato.', 'danger')
+        return redirect(url_for('contratos'))
+    
+    # Eliminar el archivo de comprobante si existe
+    if contrato.comprobante_venta:
+        ruta_comprobante = os.path.join(app.config['UPLOAD_FOLDER'], contrato.comprobante_venta)
+        if os.path.exists(ruta_comprobante):
+            try:
+                os.remove(ruta_comprobante)
+            except Exception as e:
+                print(f"Error al eliminar archivo: {e}")
+    
+    db.session.delete(contrato)
+    db.session.commit()
+    flash('Contrato eliminado correctamente.', 'success')
+    return redirect(url_for('contratos'))
+
+@app.route('/exportar_contratos')
+@login_required
+@rol_required('admin', 'master', 'controling', 'analista')
+@empresa_tiene_productos_required
+def exportar_contratos():
+    """Exportar lista de contratos a Excel"""
+    if current_user.rol == 'controling':
+        contratos = Contrato.query.join(Proveedor).filter(Proveedor.empresa_id == current_user.empresa_id).all()
+    else:
+        contratos = Contrato.query.all()
+    
+    data = [{
+        'ID': c.id,
+        'Nombre': c.nombre,
+        'Descripción': c.descripcion,
+        'Fecha Inicio': c.fecha_inicio.strftime('%Y-%m-%d') if c.fecha_inicio else '',
+        'Fecha Fin': c.fecha_fin.strftime('%Y-%m-%d') if c.fecha_fin else '',
+        'Estado': c.estado,
+        'Condiciones': c.condiciones,
+        'Proveedor': c.proveedor.nombre if c.proveedor else 'N/A',
+        'Empresa': c.proveedor.empresa.nombre if c.proveedor and c.proveedor.empresa else 'N/A',
+        'Tiene Comprobante': 'Sí' if c.comprobante_pdf else 'No'
+    } for c in contratos]
+    
+    df = pd.DataFrame(data)
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name='Contratos', index=False)
+    
+    output.seek(0)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f'contratos_{timestamp}.xlsx'
+    
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=filename
+    )
+
+# =====================
+# CATALOGOS
+# =====================
+@app.route('/catalogos')
+@login_required
+@rol_required('admin', 'master', 'controling', 'analista')
+@empresa_tiene_productos_required
+def catalogos():
+    """Página para ver todos los catálogos"""
+    if current_user.rol == 'controling':
+        # Controling solo ve catálogos de proveedores de su empresa
+        catalogos = Catalogo.query.join(Proveedor).filter(Proveedor.empresa_id == current_user.empresa_id).all()
+    else:
+        # Admin, master y analista ven todos los catálogos
+        catalogos = Catalogo.query.all()
+    
+    return render_template('catalogos.html', catalogos=catalogos)
+
+@app.route('/catalogos/nuevo', methods=['GET', 'POST'])
+@login_required
+@rol_required('admin', 'master', 'controling', 'analista')
+@empresa_tiene_productos_required
+def nuevo_catalogo():
+    """Crear un nuevo catálogo"""
+    if request.method == 'POST':
+        proveedor_id = request.form.get('proveedor_id')
+        if not proveedor_id:
+            flash('Debe seleccionar un proveedor.', 'danger')
+            return redirect(url_for('nuevo_catalogo'))
+        
+        # Verificar que el proveedor pertenece a la empresa del usuario (para controling)
+        proveedor = Proveedor.query.get(proveedor_id)
+        if not proveedor:
+            flash('Proveedor no encontrado.', 'danger')
+            return redirect(url_for('nuevo_catalogo'))
+        
+        if current_user.rol == 'controling' and proveedor.empresa_id != current_user.empresa_id:
+            flash('No autorizado para crear catálogos con este proveedor.', 'danger')
+            return redirect(url_for('nuevo_catalogo'))
+        
+        catalogo = Catalogo(
+            nombre=request.form['nombre'].strip(),
+            descripcion=request.form.get('descripcion', '').strip(),
+            estado=request.form.get('estado', 'Activo').strip(),
+            costo_base=safe_decimal(request.form.get('costo_base', '0')),
+            precio_venta_sugerido=safe_decimal(request.form.get('precio_venta_sugerido', '0')),
+            comision_estimada=safe_decimal(request.form.get('comision_estimada', '0')),
+            que_incluye=request.form.get('que_incluye', '').strip(),
+            proveedor_id=proveedor_id
+        )
+        
+        # Procesar fechas
+        if request.form.get('fecha_inicio'):
+            try:
+                catalogo.fecha_inicio = datetime.strptime(
+                    request.form['fecha_inicio'], '%Y-%m-%d'
+                ).date()
+            except ValueError:
+                flash('Formato de fecha de inicio inválido.', 'danger')
+                return redirect(url_for('nuevo_catalogo'))
+        
+        if request.form.get('fecha_fin'):
+            try:
+                catalogo.fecha_fin = datetime.strptime(
+                    request.form['fecha_fin'], '%Y-%m-%d'
+                ).date()
+            except ValueError:
+                flash('Formato de fecha de fin inválido.', 'danger')
+                return redirect(url_for('nuevo_catalogo'))
+        
+        db.session.add(catalogo)
+        db.session.flush()  # Para obtener el ID
+        
+        # Manejar archivo PDF
+        file = request.files.get('archivo_pdf')
+        if file and file.filename:
+            nombre_archivo, contenido_pdf, error_mensaje = guardar_comprobante(file, catalogo)
+            if error_mensaje:
+                flash(error_mensaje, 'danger')
+                return redirect(url_for('nuevo_catalogo'))
+            elif nombre_archivo:
+                catalogo.comprobante_venta = nombre_archivo
+                catalogo.comprobante_pdf = contenido_pdf
+        
+        db.session.commit()
+        flash('Catálogo creado correctamente.', 'success')
+        return redirect(url_for('catalogos'))
+    
+    # Para GET request - obtener proveedores disponibles
+    if current_user.rol == 'controling':
+        proveedores = Proveedor.query.filter_by(empresa_id=current_user.empresa_id).all()
+    else:
+        proveedores = Proveedor.query.all()
+    
+    return render_template('nuevo_catalogo.html', proveedores=proveedores)
+
+@app.route('/catalogos/editar/<int:id>', methods=['GET', 'POST'])
+@login_required
+@rol_required('admin', 'master', 'controling', 'analista')
+@empresa_tiene_productos_required
+def editar_catalogo(id):
+    """Editar un catálogo existente"""
+    catalogo = Catalogo.query.get_or_404(id)
+    
+    # Verificar permisos
+    if current_user.rol == 'controling' and catalogo.proveedor.empresa_id != current_user.empresa_id:
+        flash('No autorizado para editar este catálogo.', 'danger')
+        return redirect(url_for('catalogos'))
+    
+    if request.method == 'POST':
+        proveedor_id = request.form.get('proveedor_id')
+        if not proveedor_id:
+            flash('Debe seleccionar un proveedor.', 'danger')
+            return redirect(url_for('editar_catalogo', id=id))
+        
+        # Verificar que el proveedor pertenece a la empresa del usuario (para controling)
+        proveedor = Proveedor.query.get(proveedor_id)
+        if current_user.rol == 'controling' and proveedor.empresa_id != current_user.empresa_id:
+            flash('No autorizado para asignar este proveedor.', 'danger')
+            return redirect(url_for('editar_catalogo', id=id))
+        
+        catalogo.nombre = request.form['nombre'].strip()
+        catalogo.descripcion = request.form.get('descripcion', '').strip()
+        catalogo.estado = request.form.get('estado', 'Activo').strip()
+        catalogo.costo_base = safe_decimal(request.form.get('costo_base', '0'))
+        catalogo.precio_venta_sugerido = safe_decimal(request.form.get('precio_venta_sugerido', '0'))
+        catalogo.comision_estimada = safe_decimal(request.form.get('comision_estimada', '0'))
+        catalogo.que_incluye = request.form.get('que_incluye', '').strip()
+        catalogo.proveedor_id = proveedor_id
+        
+        # Procesar fechas
+        if request.form.get('fecha_inicio'):
+            try:
+                catalogo.fecha_inicio = datetime.strptime(
+                    request.form['fecha_inicio'], '%Y-%m-%d'
+                ).date()
+            except ValueError:
+                flash('Formato de fecha de inicio inválido.', 'danger')
+                return redirect(url_for('editar_catalogo', id=id))
+        else:
+            catalogo.fecha_inicio = None
+        
+        if request.form.get('fecha_fin'):
+            try:
+                catalogo.fecha_fin = datetime.strptime(
+                    request.form['fecha_fin'], '%Y-%m-%d'
+                ).date()
+            except ValueError:
+                flash('Formato de fecha de fin inválido.', 'danger')
+                return redirect(url_for('editar_catalogo', id=id))
+        else:
+            catalogo.fecha_fin = None
+        
+        # Manejar archivo PDF
+        file = request.files.get('archivo_pdf')
+        if file and file.filename:
+            nombre_archivo, contenido_pdf, error_mensaje = guardar_comprobante(file, catalogo)
+            if error_mensaje:
+                flash(error_mensaje, 'danger')
+                return redirect(url_for('editar_catalogo', id=id))
+            elif nombre_archivo:
+                catalogo.comprobante_venta = nombre_archivo
+                catalogo.comprobante_pdf = contenido_pdf
+        
+        db.session.commit()
+        flash('Catálogo actualizado correctamente.', 'success')
+        return redirect(url_for('catalogos'))
+    
+    # Para GET request - obtener proveedores disponibles
+    if current_user.rol == 'controling':
+        proveedores = Proveedor.query.filter_by(empresa_id=current_user.empresa_id).all()
+    else:
+        proveedores = Proveedor.query.all()
+    
+    return render_template('nuevo_catalogo.html', catalogo=catalogo, proveedores=proveedores)
+
+@app.route('/catalogos/eliminar/<int:id>', methods=['POST'])
+@login_required
+@rol_required('admin', 'master', 'controling', 'analista')
+@empresa_tiene_productos_required
+def eliminar_catalogo(id):
+    """Eliminar un catálogo"""
+    catalogo = Catalogo.query.get_or_404(id)
+    
+    # Verificar permisos
+    if current_user.rol == 'controling' and catalogo.proveedor.empresa_id != current_user.empresa_id:
+        flash('No autorizado para eliminar este catálogo.', 'danger')
+        return redirect(url_for('catalogos'))
+    
+    # Eliminar el archivo de comprobante si existe
+    if catalogo.comprobante_venta:
+        ruta_comprobante = os.path.join(app.config['UPLOAD_FOLDER'], catalogo.comprobante_venta)
+        if os.path.exists(ruta_comprobante):
+            try:
+                os.remove(ruta_comprobante)
+            except Exception as e:
+                print(f"Error al eliminar archivo: {e}")
+    
+    db.session.delete(catalogo)
+    db.session.commit()
+    flash('Catálogo eliminado correctamente.', 'success')
+    return redirect(url_for('catalogos'))
+
+@app.route('/exportar_catalogos')
+@login_required
+@rol_required('admin', 'master', 'controling', 'analista')
+@empresa_tiene_productos_required
+def exportar_catalogos():
+    """Exportar lista de catálogos a Excel"""
+    if current_user.rol == 'controling':
+        catalogos = Catalogo.query.join(Proveedor).filter(Proveedor.empresa_id == current_user.empresa_id).all()
+    else:
+        catalogos = Catalogo.query.all()
+    
+    data = [{
+        'ID': c.id,
+        'Nombre': c.nombre,
+        'Descripción': c.descripcion,
+        'Fecha Inicio': c.fecha_inicio.strftime('%Y-%m-%d') if c.fecha_inicio else '',
+        'Fecha Fin': c.fecha_fin.strftime('%Y-%m-%d') if c.fecha_fin else '',
+        'Estado': c.estado,
+        'Costo Base': float(c.costo_base),
+        'Precio Venta Sugerido': float(c.precio_venta_sugerido),
+        'Comisión Estimada': float(c.comision_estimada),
+        'Qué Incluye': c.que_incluye,
+        'Proveedor': c.proveedor.nombre if c.proveedor else 'N/A',
+        'Empresa': c.proveedor.empresa.nombre if c.proveedor and c.proveedor.empresa else 'N/A',
+        'Tiene Comprobante': 'Sí' if c.comprobante_pdf else 'No'
+    } for c in catalogos]
+    
+    df = pd.DataFrame(data)
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name='Catalogos', index=False)
+    
+    output.seek(0)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f'catalogos_{timestamp}.xlsx'
+    
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=filename
+    )
+
+@app.route('/comprobante_contrato/<int:id>')
+@login_required
+def ver_comprobante_contrato(id):
+    """Ver comprobante PDF de un contrato"""
+    contrato = Contrato.query.get_or_404(id)
+    
+    # Verificar permisos
+    if current_user.rol == 'controling' and contrato.proveedor.empresa_id != current_user.empresa_id:
+        flash('No autorizado para ver este comprobante.', 'danger')
+        return redirect(url_for('contratos'))
+    
+    if not contrato.comprobante_pdf:
+        flash('No hay comprobante para este contrato.', 'warning')
+        return redirect(url_for('contratos'))
+
+    return Response(
+        contrato.comprobante_pdf,
+        mimetype='application/pdf',
+        headers={"Content-Disposition": f"inline; filename=comprobante_contrato_{contrato.id}.pdf"}
+    )
+
+@app.route('/comprobante_catalogo/<int:id>')
+@login_required
+def ver_comprobante_catalogo(id):
+    """Ver comprobante PDF de un catálogo"""
+    catalogo = Catalogo.query.get_or_404(id)
+    
+    # Verificar permisos
+    if current_user.rol == 'controling' and catalogo.proveedor.empresa_id != current_user.empresa_id:
+        flash('No autorizado para ver este comprobante.', 'danger')
+        return redirect(url_for('catalogos'))
+    
+    if not catalogo.comprobante_pdf:
+        flash('No hay comprobante para este catálogo.', 'warning')
+        return redirect(url_for('catalogos'))
+
+    return Response(
+        catalogo.comprobante_pdf,
+        mimetype='application/pdf',
+        headers={"Content-Disposition": f"inline; filename=comprobante_catalogo_{catalogo.id}.pdf"}
     )
 
 # =====================

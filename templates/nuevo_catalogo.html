@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}
+  {% if catalogo %}Editar Catálogo{% else %}Nuevo Catálogo{% endif %} - Panel de Administración
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='nueva_empresa.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container mt-5" style="max-width: 900px;">
+  <h3 class="mb-4">
+    {% if catalogo %}
+      Editar Catálogo: {{ catalogo.nombre }}
+    {% else %}
+      Nuevo Catálogo
+    {% endif %}
+  </h3>
+  <form method="POST" enctype="multipart/form-data">
+    
+    <div class="mb-3">
+      <label for="nombre" class="form-label">Nombre del Catálogo <span class="text-danger">*</span></label>
+      <input type="text" class="form-control form-control-sm" id="nombre" name="nombre" 
+             value="{{ catalogo.nombre if catalogo else '' }}" required>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6 mb-3">
+        <label for="proveedor_id" class="form-label">Proveedor <span class="text-danger">*</span></label>
+        <select class="form-select form-select-sm" id="proveedor_id" name="proveedor_id" required>
+          <option value="">Seleccionar proveedor...</option>
+          {% for proveedor in proveedores %}
+          <option value="{{ proveedor.id }}" 
+                  {% if catalogo and catalogo.proveedor_id == proveedor.id %}selected{% endif %}>
+            {{ proveedor.nombre }} - {{ proveedor.empresa.nombre if proveedor.empresa else 'N/A' }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-6 mb-3">
+        <label for="tipo_catalogo" class="form-label">Tipo de Catálogo</label>
+        <select class="form-select form-select-sm" id="tipo_catalogo" name="tipo_catalogo">
+          <option value="">Seleccionar tipo</option>
+          <option value="Hoteles" {% if catalogo and catalogo.tipo_catalogo == 'Hoteles' %}selected{% endif %}>Hoteles</option>
+          <option value="Vuelos" {% if catalogo and catalogo.tipo_catalogo == 'Vuelos' %}selected{% endif %}>Vuelos</option>
+          <option value="Tours" {% if catalogo and catalogo.tipo_catalogo == 'Tours' %}selected{% endif %}>Tours</option>
+          <option value="Transporte" {% if catalogo and catalogo.tipo_catalogo == 'Transporte' %}selected{% endif %}>Transporte</option>
+          <option value="Paquetes" {% if catalogo and catalogo.tipo_catalogo == 'Paquetes' %}selected{% endif %}>Paquetes</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <label for="descripcion" class="form-label">Descripción</label>
+      <textarea class="form-control form-control-sm" id="descripcion" name="descripcion" rows="3" 
+                placeholder="Descripción del catálogo">{{ catalogo.descripcion if catalogo else '' }}</textarea>
+    </div>
+
+    <div class="row">
+      <div class="col-md-4 mb-3">
+        <label for="precio_base" class="form-label">Precio Base</label>
+        <input type="number" step="0.01" class="form-control form-control-sm" id="precio_base" name="precio_base" 
+               value="{{ catalogo.precio_base if catalogo else '' }}" placeholder="0.00">
+      </div>
+      <div class="col-md-4 mb-3">
+        <label for="precio_venta" class="form-label">Precio de Venta</label>
+        <input type="number" step="0.01" class="form-control form-control-sm" id="precio_venta" name="precio_venta" 
+               value="{{ catalogo.precio_venta if catalogo else '' }}" placeholder="0.00">
+      </div>
+      <div class="col-md-4 mb-3">
+        <label for="comision" class="form-label">Comisión (%)</label>
+        <input type="number" step="0.01" class="form-control form-control-sm" id="comision" name="comision" 
+               value="{{ catalogo.comision if catalogo else '' }}" placeholder="0.00">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6 mb-3">
+        <label for="fecha_vigencia_inicio" class="form-label">Vigencia Desde</label>
+        <input type="date" class="form-control form-control-sm" id="fecha_vigencia_inicio" name="fecha_vigencia_inicio" 
+               value="{{ catalogo.fecha_vigencia_inicio.strftime('%Y-%m-%d') if catalogo and catalogo.fecha_vigencia_inicio else '' }}">
+      </div>
+      <div class="col-md-6 mb-3">
+        <label for="fecha_vigencia_fin" class="form-label">Vigencia Hasta</label>
+        <input type="date" class="form-control form-control-sm" id="fecha_vigencia_fin" name="fecha_vigencia_fin" 
+               value="{{ catalogo.fecha_vigencia_fin.strftime('%Y-%m-%d') if catalogo and catalogo.fecha_vigencia_fin else '' }}">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6 mb-3">
+        <label for="disponibilidad" class="form-label">Disponibilidad</label>
+        <select class="form-select form-select-sm" id="disponibilidad" name="disponibilidad">
+          <option value="Disponible" {% if catalogo and catalogo.disponibilidad == 'Disponible' %}selected{% endif %}>Disponible</option>
+          <option value="Limitada" {% if catalogo and catalogo.disponibilidad == 'Limitada' %}selected{% endif %}>Limitada</option>
+          <option value="Agotada" {% if catalogo and catalogo.disponibilidad == 'Agotada' %}selected{% endif %}>Agotada</option>
+        </select>
+      </div>
+      <div class="col-md-6 mb-3">
+        <label for="estado" class="form-label">Estado</label>
+        <select class="form-select form-select-sm" id="estado" name="estado">
+          <option value="Activo" {% if catalogo and catalogo.estado == 'Activo' %}selected{% endif %}>Activo</option>
+          <option value="Inactivo" {% if catalogo and catalogo.estado == 'Inactivo' %}selected{% endif %}>Inactivo</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <label for="archivo_pdf" class="form-label">Archivo PDF del Catálogo</label>
+      <input type="file" class="form-control form-control-sm" id="archivo_pdf" name="archivo_pdf" accept=".pdf">
+      {% if catalogo and catalogo.archivo_pdf %}
+      <div class="mt-2">
+        <small class="text-muted">Archivo actual: {{ catalogo.archivo_pdf }}</small>
+        <a href="{{ url_for('ver_catalogo_pdf', id=catalogo.id) }}" target="_blank" class="btn btn-sm btn-outline-primary ms-2">Ver PDF</a>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if current_user.rol in ['admin', 'master'] %}
+    <div class="mb-3">
+      <label for="empresa_id" class="form-label">Empresa <span class="text-danger">*</span></label>
+      <select class="form-select form-select-sm" id="empresa_id" name="empresa_id" required>
+        <option value="">Seleccionar empresa...</option>
+        {% for empresa in empresas %}
+        <option value="{{ empresa.id }}" 
+                {% if catalogo and catalogo.empresa_id == empresa.id %}selected{% endif %}>
+          {{ empresa.nombre }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+
+    <div class="d-grid">
+      <button type="submit" class="btn btn-custom btn-sm">
+        {% if catalogo %}Actualizar{% else %}Crear{% endif %} Catálogo
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}
