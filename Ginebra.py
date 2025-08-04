@@ -1649,7 +1649,7 @@ def estados_de_venta():
 @login_required
 @empresa_tiene_gestion_required
 def balance_mensual():
-    """Mostrar balance mensual filtrado por fecha de emisión"""
+    """Mostrar balance mensual filtrado por fecha de venta"""
     # Obtener el mes del parámetro
     mes_param = request.args.get('mes', '')
     
@@ -1669,11 +1669,10 @@ def balance_mensual():
     año_mes = selected_mes_str.split(' (')[0]
     año, mes = map(int, año_mes.split('-'))
     
-    # Obtener reservas del mes filtrado por fecha_emitida
-    reservas = Reserva.query.filter(
-        db.extract('year', Reserva.fecha_emitida) == año,
-        db.extract('month', Reserva.fecha_emitida) == mes,
-        Reserva.eliminado == False
+    # Obtener reservas del mes filtrado por fecha_venta (corregido)
+    reservas = Reserva.query.join(Usuario).filter(
+        db.extract('year', Reserva.fecha_venta) == año,
+        db.extract('month', Reserva.fecha_venta) == mes
     ).all()
     
     # Preparar datos
@@ -1686,31 +1685,32 @@ def balance_mensual():
     }
     
     for reserva in reservas:
-        # Cálculos de comisión (misma lógica que estados_de_venta)
-        precio_venta_neto = reserva.precio_venta_total * 0.81 if reserva.precio_venta_total else 0
-        comision_ejecutivo = precio_venta_neto * 0.03 if precio_venta_neto else 0
-        comision_agencia = (precio_venta_neto - comision_ejecutivo) * 0.02 if precio_venta_neto else 0
+        # Obtener nombre completo del ejecutivo
+        ejecutivo_nombre_completo = f"{reserva.usuario.nombre} {reserva.usuario.apellidos}" if reserva.usuario else 'Sin asignar'
+        
+        # Calcular comisiones usando la función existente
+        comision_ejecutivo, comision_agencia, ganancia_total = calcular_comisiones(reserva, reserva.usuario)
         
         balance_data.append({
             'reserva_id': reserva.id,
-            'ejecutivo': reserva.ejecutivo or 'Sin asignar',
-            'fecha_emitida': reserva.fecha_emitida,
+            'ejecutivo': ejecutivo_nombre_completo,
+            'fecha_emitida': reserva.fecha_venta,  # Cambiar nombre para compatibilidad con template
             'fecha_viaje': reserva.fecha_viaje,
             'localizadores': reserva.localizadores,
             'estado_pago': reserva.estado_pago or 'No definido',
             'venta_cobrada': reserva.venta_cobrada or 'No definido',
             'venta_emitida': reserva.venta_emitida or 'No definido',
             'precio_venta_total': reserva.precio_venta_total,
-            'precio_venta_neto': precio_venta_neto,
+            'precio_venta_neto': reserva.precio_venta_neto,
             'comision_ejecutivo': comision_ejecutivo,
             'comision_agencia': comision_agencia
         })
         
         # Sumar a los totales
-        totales['precio_venta_total'] += reserva.precio_venta_total
-        totales['precio_venta_neto'] += precio_venta_neto
-        totales['comision_ejecutivo'] += comision_ejecutivo
-        totales['comision_agencia'] += comision_agencia
+        totales['precio_venta_total'] += reserva.precio_venta_total or 0
+        totales['precio_venta_neto'] += reserva.precio_venta_neto or 0
+        totales['comision_ejecutivo'] += comision_ejecutivo or 0
+        totales['comision_agencia'] += comision_agencia or 0
     
     return render_template('balance_mensual.html', 
                          balance_data=balance_data,
@@ -1722,7 +1722,7 @@ def balance_mensual():
 @login_required
 @rol_required('admin', 'master')
 def liquidaciones():
-    """Mostrar liquidaciones filtradas por ejecutivo y fecha emitida"""
+    """Mostrar liquidaciones filtradas por ejecutivo y fecha de venta"""
     # Obtener parámetros
     mes_param = request.args.get('mes', '')
     ejecutivo_param = request.args.get('ejecutivo', '')
@@ -1743,25 +1743,33 @@ def liquidaciones():
     año_mes = selected_mes_str.split(' (')[0]
     año, mes = map(int, año_mes.split('-'))
     
-    # Obtener ejecutivos disponibles
-    ejecutivos_disponibles = db.session.query(Reserva.ejecutivo).filter(
-        Reserva.ejecutivo.isnot(None),
-        Reserva.ejecutivo != '',
-        Reserva.eliminado == False
-    ).distinct().order_by(Reserva.ejecutivo).all()
-    ejecutivos_disponibles = [ej[0] for ej in ejecutivos_disponibles]
+    # Obtener ejecutivos disponibles (usuarios que han hecho reservas)
+    ejecutivos_disponibles = db.session.query(
+        Usuario.nombre, Usuario.apellidos
+    ).join(Reserva).filter(
+        Usuario.nombre.isnot(None),
+        Usuario.apellidos.isnot(None)
+    ).distinct().order_by(Usuario.nombre, Usuario.apellidos).all()
+    
+    ejecutivos_disponibles = [f"{ej[0]} {ej[1]}" for ej in ejecutivos_disponibles]
     
     # Construir consulta base
-    query = Reserva.query.filter(
-        db.extract('year', Reserva.fecha_emitida) == año,
-        db.extract('month', Reserva.fecha_emitida) == mes,
-        Reserva.eliminado == False
+    query = Reserva.query.join(Usuario).filter(
+        db.extract('year', Reserva.fecha_venta) == año,
+        db.extract('month', Reserva.fecha_venta) == mes
     )
     
     # Filtrar por ejecutivo si se especifica
     selected_ejecutivo = ejecutivo_param
     if selected_ejecutivo:
-        query = query.filter(Reserva.ejecutivo == selected_ejecutivo)
+        # Dividir nombre y apellido para filtrar
+        partes_nombre = selected_ejecutivo.split(' ', 1)
+        if len(partes_nombre) == 2:
+            nombre, apellido = partes_nombre
+            query = query.filter(
+                Usuario.nombre == nombre,
+                Usuario.apellidos == apellido
+            )
     
     reservas = query.all()
     
@@ -1778,46 +1786,45 @@ def liquidaciones():
     ejecutivos_resumen = {}
     
     for reserva in reservas:
-        # Cálculos de comisión
-        precio_venta_neto = reserva.precio_venta_total * 0.81 if reserva.precio_venta_total else 0
-        comision_ejecutivo = precio_venta_neto * 0.03 if precio_venta_neto else 0
-        comision_agencia = (precio_venta_neto - comision_ejecutivo) * 0.02 if precio_venta_neto else 0
+        # Obtener nombre completo del ejecutivo
+        ejecutivo_nombre_completo = f"{reserva.usuario.nombre} {reserva.usuario.apellidos}"
         
-        ejecutivo = reserva.ejecutivo or 'Sin asignar'
+        # Calcular comisiones usando la función existente
+        comision_ejecutivo, comision_agencia, ganancia_total = calcular_comisiones(reserva, reserva.usuario)
         
         liquidaciones_data.append({
             'reserva_id': reserva.id,
-            'ejecutivo': ejecutivo,
-            'fecha_emitida': reserva.fecha_emitida,
+            'ejecutivo': ejecutivo_nombre_completo,
+            'fecha_emitida': reserva.fecha_venta,  # Cambiar nombre para compatibilidad con template
             'fecha_viaje': reserva.fecha_viaje,
             'localizadores': reserva.localizadores,
             'estado_pago': reserva.estado_pago or 'No definido',
             'venta_cobrada': reserva.venta_cobrada or 'No definido',
             'venta_emitida': reserva.venta_emitida or 'No definido',
             'precio_venta_total': reserva.precio_venta_total,
-            'precio_venta_neto': precio_venta_neto,
+            'precio_venta_neto': reserva.precio_venta_neto,
             'comision_ejecutivo': comision_ejecutivo,
             'comision_agencia': comision_agencia
         })
         
         # Sumar a los totales
-        totales['precio_venta_total'] += reserva.precio_venta_total
-        totales['precio_venta_neto'] += precio_venta_neto
-        totales['comision_ejecutivo'] += comision_ejecutivo
-        totales['comision_agencia'] += comision_agencia
+        totales['precio_venta_total'] += reserva.precio_venta_total or 0
+        totales['precio_venta_neto'] += reserva.precio_venta_neto or 0
+        totales['comision_ejecutivo'] += comision_ejecutivo or 0
+        totales['comision_agencia'] += comision_agencia or 0
         
         # Acumular para resumen por ejecutivo
-        if ejecutivo not in ejecutivos_resumen:
-            ejecutivos_resumen[ejecutivo] = {
-                'ejecutivo': ejecutivo,
+        if ejecutivo_nombre_completo not in ejecutivos_resumen:
+            ejecutivos_resumen[ejecutivo_nombre_completo] = {
+                'ejecutivo': ejecutivo_nombre_completo,
                 'cantidad': 0,
                 'ventas_total': 0,
                 'comisiones_total': 0
             }
         
-        ejecutivos_resumen[ejecutivo]['cantidad'] += 1
-        ejecutivos_resumen[ejecutivo]['ventas_total'] += reserva.precio_venta_total
-        ejecutivos_resumen[ejecutivo]['comisiones_total'] += comision_ejecutivo
+        ejecutivos_resumen[ejecutivo_nombre_completo]['cantidad'] += 1
+        ejecutivos_resumen[ejecutivo_nombre_completo]['ventas_total'] += reserva.precio_venta_total or 0
+        ejecutivos_resumen[ejecutivo_nombre_completo]['comisiones_total'] += comision_ejecutivo or 0
     
     # Convertir resumen a lista ordenada
     ejecutivos_resumen_lista = sorted(ejecutivos_resumen.values(), 

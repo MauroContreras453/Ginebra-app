@@ -3,7 +3,7 @@
 {% block title %}Balance Mensual - Panel de Administración{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='balance_mensual.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='liquidaciones.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -17,7 +17,7 @@
         <div class="card-body">
             <form method="GET" class="row g-3 align-items-center">
                 <div class="col-md-4">
-                    <label for="mes" class="form-label">Filtrar por mes de emisión:</label>
+                    <label for="mes" class="form-label">Filtrar por mes de venta:</label>
                     <select class="form-select" id="mes" name="mes" onchange="this.form.submit()">
                         {% for mes in meses_anteriores %}
                         <option value="{{ mes }}" {% if mes == selected_mes_str %}selected{% endif %}>
@@ -144,4 +144,3 @@
     {% endif %}
 </div>
 {% endblock %}
-
