@@ -1138,6 +1138,26 @@ def formato_miles(value):
     except:
         return '0'
 
+@app.template_filter('safe_decimal')
+def safe_decimal_filter(value):
+    """Filtro para manejar valores Decimal de forma segura"""
+    if value is None:
+        return ''
+    try:
+        return str(value)
+    except:
+        return ''
+
+@app.template_filter('safe_date')
+def safe_date_filter(value, format='%Y-%m-%d'):
+    """Filtro para manejar fechas de forma segura"""
+    if value is None:
+        return ''
+    try:
+        return value.strftime(format)
+    except:
+        return ''
+
 @app.route('/')
 def index():
     """Ruta raíz que redirige a home"""
@@ -1401,9 +1421,47 @@ def eliminar_empresa(id):
 @rol_required('admin', 'master')
 def contabilidad_empresas():
     """Página para gestionar la contabilidad de empresas"""
-    facturas = Factura.query.join(Empresa).all()
+    # Obtener parámetros de filtro
+    mes_param = request.args.get('mes', '')
+    empresa_param = request.args.get('empresa_id', '')
+    
+    # Obtener lista de meses anteriores (últimos 12 meses)
+    fecha_actual = datetime.now()
+    meses_anteriores = []
+    for i in range(12):
+        fecha_mes = fecha_actual - timedelta(days=30*i)
+        mes_str = fecha_mes.strftime('%Y-%m')
+        mes_nombre = obtener_nombre_mes(fecha_mes.month)
+        meses_anteriores.append(f"{mes_str} ({mes_nombre})")
+    
+    # Construir consulta base
+    query = Factura.query.join(Empresa)
+    
+    # Aplicar filtro por mes si se especifica
+    selected_mes_str = mes_param
+    if mes_param:
+        # Extraer año y mes del parámetro
+        año_mes = mes_param.split(' (')[0]
+        año, mes = map(int, año_mes.split('-'))
+        query = query.filter(
+            db.extract('year', Factura.mes) == año,
+            db.extract('month', Factura.mes) == mes
+        )
+    
+    # Aplicar filtro por empresa si se especifica
+    selected_empresa_id = empresa_param
+    if empresa_param:
+        query = query.filter(Factura.empresa_id == int(empresa_param))
+    
+    facturas = query.all()
     empresas = Empresa.query.all()
-    return render_template('contabilidad_empresas.html', facturas=facturas, empresas=empresas)
+    
+    return render_template('contabilidad_empresas.html', 
+                         facturas=facturas, 
+                         empresas=empresas,
+                         meses_anteriores=meses_anteriores,
+                         selected_mes_str=selected_mes_str,
+                         selected_empresa_id=selected_empresa_id)
 
 @app.route('/admin/facturas/nueva', methods=['GET', 'POST'])
 @login_required
@@ -1533,6 +1591,81 @@ def exportar_empresas():
     output.seek(0)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     filename = f'empresas_{timestamp}.xlsx'
+    
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=filename
+    )
+
+@app.route('/exportar_facturas')
+@login_required
+@rol_required('admin', 'master')
+def exportar_facturas():
+    """Exportar facturas de contabilidad a Excel con filtros aplicados"""
+    mes_param = request.args.get('mes', '')
+    empresa_param = request.args.get('empresa_id', '')
+    
+    # Construir consulta base igual que en contabilidad_empresas
+    query = Factura.query.join(Empresa)
+    
+    # Aplicar filtro por mes si se especifica
+    if mes_param and mes_param.strip():
+        # Extraer año y mes del parámetro
+        año_mes = mes_param.split(' (')[0]
+        año, mes = map(int, año_mes.split('-'))
+        query = query.filter(
+            db.extract('year', Factura.mes) == año,
+            db.extract('month', Factura.mes) == mes
+        )
+    
+    # Aplicar filtro por empresa si se especifica
+    if empresa_param and empresa_param.strip():
+        query = query.filter(Factura.empresa_id == int(empresa_param))
+    
+    facturas = query.all()
+    
+    # Preparar datos para Excel
+    data = [{
+        'ID': f.id,
+        'Empresa': f.empresa.nombre,
+        'Mes': f.mes.strftime('%Y-%m') if f.mes else '',
+        'Monto': float(f.monto) if f.monto else 0,
+        'Fecha Factura': f.mes.strftime('%Y-%m-%d') if f.mes else '',
+        'Estado': f.estado or '',
+        'Fecha Pago': f.fecha_pago.strftime('%Y-%m-%d') if f.fecha_pago else '',
+        'Método Pago': f.metodo_pago or '',
+        'Observaciones': f.observaciones or ''
+    } for f in facturas]
+    
+    # Crear archivo Excel
+    df = pd.DataFrame(data)
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name='Facturas', index=False)
+        
+        # Ajustar ancho de columnas
+        worksheet = writer.sheets['Facturas']
+        for idx, col in enumerate(df.columns):
+            max_length = max(
+                df[col].astype(str).map(len).max(),
+                len(col)
+            ) + 2
+            worksheet.column_dimensions[chr(65 + idx)].width = min(max_length, 50)
+    
+    output.seek(0)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    
+    # Crear nombre de archivo descriptivo basado en filtros
+    filename_parts = ['facturas']
+    if mes_param and mes_param.strip():
+        mes_clean = mes_param.split(' (')[0].replace('-', '_')
+        filename_parts.append(f'mes_{mes_clean}')
+    if empresa_param and empresa_param.strip():
+        filename_parts.append(f'empresa_{empresa_param}')
+    filename_parts.append(timestamp)
+    filename = '_'.join(filename_parts) + '.xlsx'
     
     return send_file(
         output,

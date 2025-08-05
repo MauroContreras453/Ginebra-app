@@ -30,12 +30,12 @@
       <div class="col-md-6 mb-3">
         <label for="mes" class="form-label">Mes</label>
         <input type="month" class="form-control form-control-sm" id="mes" name="mes" 
-               value="{% if factura and factura.mes %}{{ factura.mes.strftime('%Y-%m') }}{% endif %}" required>
+               value="{{ factura.mes | safe_date('%Y-%m') if factura else '' }}" required>
       </div>
       <div class="col-md-6 mb-3">
         <label for="monto" class="form-label">Monto</label>
         <input type="number" step="0.01" class="form-control form-control-sm" id="monto" name="monto" 
-               value="{% if factura %}{{ factura.monto }}{% endif %}" required>
+               value="{{ factura.monto | safe_decimal if factura else '' }}" required>
       </div>
     </div>
 
@@ -50,21 +50,21 @@
       <div class="col-md-6 mb-3">
         <label for="fecha_pago" class="form-label">Fecha de Pago</label>
         <input type="date" class="form-control form-control-sm" id="fecha_pago" name="fecha_pago"
-               value="{% if factura and factura.fecha_pago %}{{ factura.fecha_pago.strftime('%Y-%m-%d') }}{% endif %}">
+               value="{{ factura.fecha_pago | safe_date if factura else '' }}">
       </div>
     </div>
 
     <div class="mb-3">
       <label for="metodo_pago" class="form-label">Método de Pago</label>
       <input type="text" class="form-control form-control-sm" id="metodo_pago" name="metodo_pago" 
-             value="{% if factura %}{{ factura.metodo_pago or '' }}{% endif %}" 
+             value="{% if factura and factura.metodo_pago %}{{ factura.metodo_pago }}{% endif %}" 
              placeholder="Transferencia, Efectivo, Cheque, etc.">
     </div>
 
     <div class="mb-3">
       <label for="observaciones" class="form-label">Observaciones</label>
       <textarea class="form-control form-control-sm" id="observaciones" name="observaciones" 
-                rows="3" placeholder="Observaciones adicionales...">{% if factura %}{{ factura.observaciones or '' }}{% endif %}</textarea>
+                rows="3" placeholder="Observaciones adicionales...">{% if factura and factura.observaciones %}{{ factura.observaciones }}{% endif %}</textarea>
     </div>
 
     <div class="d-flex gap-2">

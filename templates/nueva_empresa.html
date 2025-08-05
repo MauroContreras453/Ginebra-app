@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Crear Nueva Empresa - Panel de Administración{% endblock %}
+{% block title %}
+  {% if empresa %}
+    Editar Empresa - Panel de Administración
+  {% else %}
+    Crear Nueva Empresa - Panel de Administración
+  {% endif %}
+{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='nueva_empresa.css') }}">
@@ -8,60 +14,78 @@
 
 {% block content %}
 <div class="container mt-5" style="max-width: 900px;">
-  <h3 class="mb-4">Crear Nueva Empresa</h3>
-  <form method="POST" action="{{ url_for('nueva_empresa') }}">
+  <h3 class="mb-4">
+    {% if empresa %}
+      Editar Empresa
+    {% else %}
+      Crear Nueva Empresa
+    {% endif %}
+  </h3>
+  <form method="POST" action="{% if empresa %}{{ url_for('editar_empresa', id=empresa.id) }}{% else %}{{ url_for('nueva_empresa') }}{% endif %}">
     
     <div class="mb-3">
       <label for="nombre" class="form-label">Nombre de la Empresa</label>
-      <input type="text" class="form-control form-control-sm" id="nombre" name="nombre" required>
+      <input type="text" class="form-control form-control-sm" id="nombre" name="nombre" 
+             value="{{ empresa.nombre if empresa else '' }}" required>
     </div>
 
     <div class="row">
       <div class="col-md-6 mb-3">
         <label for="representante" class="form-label">Representante</label>
-        <input type="text" class="form-control form-control-sm" id="representante" name="representante" required>
+        <input type="text" class="form-control form-control-sm" id="representante" name="representante" 
+               value="{{ empresa.representante if empresa else '' }}" required>
       </div>
       <div class="col-md-6 mb-3">
         <label for="telefono" class="form-label">Teléfono</label>
-        <input type="text" class="form-control form-control-sm" id="telefono" name="telefono" required>
+        <input type="text" class="form-control form-control-sm" id="telefono" name="telefono" 
+               value="{{ empresa.telefono if empresa else '' }}" required>
       </div>
     </div>
 
     <div class="row">
       <div class="col-md-6 mb-3">
         <label for="correo" class="form-label">Correo</label>
-        <input type="email" class="form-control form-control-sm" id="correo" name="correo" required>
+        <input type="email" class="form-control form-control-sm" id="correo" name="correo" 
+               value="{{ empresa.correo if empresa else '' }}" required>
       </div>
       <div class="col-md-6 mb-3">
         <label for="razon_social" class="form-label">Razón Social</label>
-        <input type="text" class="form-control form-control-sm" id="razon_social" name="razon_social" required>
+        <input type="text" class="form-control form-control-sm" id="razon_social" name="razon_social" 
+               value="{{ empresa.razon_social if empresa else '' }}" required>
       </div>
     </div>
 
     <div class="mb-3">
       <label for="direccion" class="form-label">Dirección</label>
-      <input type="text" class="form-control form-control-sm" id="direccion" name="direccion" required>
+      <input type="text" class="form-control form-control-sm" id="direccion" name="direccion" 
+             value="{{ empresa.direccion if empresa else '' }}" required>
     </div>
 
     <div class="row">
       <div class="col-md-6 mb-3">
         <label for="tiene_gestion" class="form-label">¿Tiene Gestión?</label>
         <select class="form-select form-select-sm" id="tiene_gestion" name="tiene_gestion" required>
-          <option value="no">No</option>
-          <option value="si">Sí</option>
+          <option value="no" {% if empresa and empresa.tiene_gestion == 'no' %}selected{% elif not empresa %}selected{% endif %}>No</option>
+          <option value="si" {% if empresa and empresa.tiene_gestion == 'si' %}selected{% endif %}>Sí</option>
         </select>
       </div>
       <div class="col-md-6 mb-3">
         <label for="tiene_productos" class="form-label">¿Tiene Productos?</label>
         <select class="form-select form-select-sm" id="tiene_productos" name="tiene_productos" required>
-          <option value="no">No</option>
-          <option value="si">Sí</option>
+          <option value="no" {% if empresa and empresa.tiene_productos == 'no' %}selected{% elif not empresa %}selected{% endif %}>No</option>
+          <option value="si" {% if empresa and empresa.tiene_productos == 'si' %}selected{% endif %}>Sí</option>
         </select>
       </div>
     </div>
 
     <div class="d-grid">
-      <button type="submit" class="btn btn-custom btn-sm">Crear Empresa</button>
+      <button type="submit" class="btn btn-custom btn-sm">
+        {% if empresa %}
+          Actualizar Empresa
+        {% else %}
+          Crear Empresa
+        {% endif %}
+      </button>
     </div>
   </form>
 </div>

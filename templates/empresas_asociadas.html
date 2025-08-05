@@ -18,7 +18,7 @@
         {% endif %}
       </div>
     </div>
-
+ 
     {% if current_user.rol in ['admin', 'master'] %}
     <table class="table table-bordered table-hover text-white align-middle">
       <thead>
@@ -46,7 +46,7 @@
           <td>{{ empresa.correo }}</td>
           <td>{{ empresa.telefono }}</td>
           <td>{{ empresa.tiene_gestion }}</td>
-          <td>{{ empresa.tiene_producto }}</td>
+          <td>{{ empresa.tiene_productos }}</td>
           <td class="text-center">
             <div class="d-inline-flex gap-2">
               <a href="{{ url_for('editar_empresa', id=empresa.id) }}" class="btn btn-sm btn-warning">Editar</a>

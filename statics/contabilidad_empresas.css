@@ -52,6 +52,40 @@
   border-color: #1e7e34;
 }
 
+/* Card de filtros más compacta */
+.card.mb-4 {
+  min-height: auto;
+}
+
+.card.mb-4 .card-body {
+  padding: 1rem;
+}
+
+/* Formulario más compacto */
+.card.mb-4 .form-label {
+  margin-bottom: 0.25rem;
+  font-size: 0.9rem;
+}
+
+.card.mb-4 .form-select {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.9rem;
+}
+
+/* Asegurar que todos los botones en la card de filtros tengan la misma altura */
+/* Uniformidad para botones en la tarjeta de filtros */
+.card .btn {
+  min-height: 38px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.2;
+  font-weight: 400;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.9rem;
+}
+
 /* Espaciado específico para la página */
 .container {
   margin-top: 0px !important;
@@ -62,3 +96,4 @@ h3 {
   color: var(--accent-color);
   font-weight: 600;
 }
+

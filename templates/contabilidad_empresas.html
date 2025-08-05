@@ -11,57 +11,103 @@
 <div class="container" style="margin-top: 120px;">
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h3 class="mb-0">Contabilidad mensual</h3>
-    <a href="{{ url_for('nueva_factura') }}" class="btn btn-custom">Nueva factura</a>
   </div>
 
-  <table class="table table-bordered table-hover text-white align-middle">
-    <thead>
-      <tr>
-        <th>Empresa</th>
-        <th>Mes</th>
-        <th>Monto</th>
-        <th>Fecha Factura</th>
-        <th>Estado</th>
-        <th>Fecha Pago</th>
-        <th>Método</th>
-        <th>Observaciones</th>
-        <th class="text-center">Acciones</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for factura in facturas %}
-      <tr>
-        <td>{{ factura.empresa.nombre }}</td>
-        <td>{{ factura.mes }}</td>
-        <td>${{ "{:,.0f}".format(factura.monto_facturado) }}</td>
-        <td>{{ factura.fecha_factura.strftime('%Y-%m-%d') }}</td>
-        <td>
-          {% if factura.pagado %}
-            <span class="badge bg-success">Pagado</span>
-          {% else %}
-            <span class="badge bg-warning text-dark">Pendiente</span>
-          {% endif %}
-        </td>
-        <td>
-          {% if factura.fecha_pago %}
-            {{ factura.fecha_pago.strftime('%Y-%m-%d') }}
-          {% else %}
-            -
-          {% endif %}
-        </td>
-        <td>{{ factura.metodo_pago or '-' }}</td>
-        <td>{{ factura.observaciones or '-' }}</td>
-        <td class="text-center">
-          <div class="d-inline-flex gap-2">
-            <a href="{{ url_for('editar_factura', id=factura.id) }}" class="btn btn-sm btn-warning">Editar</a>
-            <form method="POST" action="{{ url_for('eliminar_factura', id=factura.id) }}" onsubmit="return confirm('¿Seguro que quieres eliminar esta factura?')">
-              <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
-            </form>
-          </div>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <!-- Filtros -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <form method="GET" class="row g-3 align-items-end">
+        <div class="col-md-3">
+          <label for="mes" class="form-label">Filtrar por mes:</label>
+          <select class="form-select" id="mes" name="mes">
+            <option value="">Todos los meses</option>
+            {% for mes in meses_anteriores %}
+            <option value="{{ mes }}" {% if mes == selected_mes_str %}selected{% endif %}>
+              {{ mes }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label for="empresa_id" class="form-label">Filtrar por empresa:</label>
+          <select class="form-select" id="empresa_id" name="empresa_id">
+            <option value="">Todas las empresas</option>
+            {% for empresa in empresas %}
+            <option value="{{ empresa.id }}" {% if empresa.id|string == selected_empresa_id %}selected{% endif %}>
+              {{ empresa.nombre }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <button type="submit" class="btn btn-primary">Filtrar</button>
+        </div>
+        <div class="col-md-2">
+          <a href="{{ url_for('exportar_facturas', mes=selected_mes_str, empresa_id=selected_empresa_id) }}" class="btn btn-success w-100">📤 Exportar a Excel</a>
+        </div>
+        <div class="col-md-2">
+          <a href="{{ url_for('nueva_factura') }}" class="btn btn-custom w-100">Nueva factura</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Tabla de facturas -->
+  <div class="card">
+    <div class="card-body">
+      {% if facturas %}
+      <div class="table-responsive">
+        <table class="table table-bordered table-hover text-white align-middle">
+          <thead>
+            <tr>
+              <th>Empresa</th>
+              <th>Mes</th>
+              <th>Monto</th>
+              <th>Fecha Factura</th>
+              <th>Estado</th>
+              <th>Fecha Pago</th>
+              <th>Método</th>
+              <th>Observaciones</th>
+              <th class="text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for factura in facturas %}
+            <tr>
+              <td>{{ factura.empresa.nombre }}</td>
+              <td>{{ factura.mes | safe_date('%Y-%m') if factura.mes else '-' }}</td>
+              <td>${{ factura.monto | safe_decimal | formato_miles }}</td>
+              <td>{{ factura.mes | safe_date('%Y-%m-%d') if factura.mes else '-' }}</td>
+              <td>
+                {% if factura.estado == 'Pagado' %}
+                  <span class="badge bg-success">Pagado</span>
+                {% else %}
+                  <span class="badge bg-warning text-dark">No Pagado</span>
+                {% endif %}
+              </td>
+              <td>{{ factura.fecha_pago | safe_date if factura.fecha_pago else '-' }}</td>
+              <td>{{ factura.metodo_pago if factura.metodo_pago else '-' }}</td>
+              <td>{{ factura.observaciones if factura.observaciones else '-' }}</td>
+              <td class="text-center">
+                <div class="d-inline-flex gap-2">
+                  <a href="{{ url_for('editar_factura', id=factura.id) }}" class="btn btn-sm btn-warning">Editar</a>
+                  <form method="POST" action="{{ url_for('eliminar_factura', id=factura.id) }}" onsubmit="return confirm('¿Seguro que quieres eliminar esta factura?')">
+                    <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-center py-5">
+        <p class="mb-0">No hay facturas que coincidan con los filtros seleccionados.</p>
+        <a href="{{ url_for('nueva_factura') }}" class="btn btn-custom mt-3">Crear primera factura</a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
 </div>
 {% endblock %}
