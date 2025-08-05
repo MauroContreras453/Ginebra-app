@@ -47,12 +47,13 @@ form { display: inline; }
 .navbar-custom .logo h1 {
   color: var(--accent-color);
   font-weight: bold;
+  font-size: 3rem;
   margin: 0;
 }
 
 .navbar-custom .logo .subtitulo {
   color: var(--text-color);
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   margin: 0;
   opacity: 0.8;
 }

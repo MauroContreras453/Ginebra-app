@@ -29,3 +29,8 @@
 .container.mt-5 {
   margin-top: 0px !important;
 }
+
+/* Ajustes para el text muted */
+.form-text.text-muted {
+  color: #ffffff !important;
+}

@@ -107,8 +107,8 @@ class Usuario(UserMixin, db.Model):
     correo_personal = db.Column(db.String(150), index=True)
     correo = db.Column(db.String(150), unique=True, nullable=False, index=True)
     direccion = db.Column(db.String(250), index=True)
-    comision = db.Column(db.Numeric(12,2), default=Decimal('0.00'), index=True)
-    sueldo = db.Column(db.Numeric(12,2), default=Decimal('0.00'), index=True)
+    comision = db.Column(db.Numeric(12,2), default=Decimal('0'), index=True)
+    sueldo = db.Column(db.Numeric(12,2), default=Decimal('0'), index=True)
     estado = db.Column(db.Enum(*ESTADO_OPTIONS, name='estado_usuario'), default='Activo')
     rol = db.Column(db.Enum(*ROLES, name='roles'), nullable=False)
     empresa_id = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=True)
@@ -304,9 +304,30 @@ def puede_crear_usuario(rol_actual, rol_nuevo):
     return jerarquia.index(rol_actual) < jerarquia.index(rol_nuevo)
 
 def puede_asignar_empresa(usuario_actual, empresa_id_objetivo):
+    """
+    Verifica si el usuario actual puede asignar una empresa específica a un usuario.
+    
+    Args:
+        usuario_actual: El usuario que está realizando la acción
+        empresa_id_objetivo: ID de la empresa que se quiere asignar (puede ser None)
+    
+    Returns:
+        bool: True si puede asignar la empresa, False si no
+    """
+    # Master y admin pueden asignar cualquier empresa
+    if usuario_actual.rol in ['master', 'admin']:
+        return True
+    
+    # Controling solo puede asignar usuarios a su propia empresa
     if usuario_actual.rol == 'controling':
+        # Si no quiere asignar empresa (None), está permitido
+        if empresa_id_objetivo is None:
+            return True
+        # Solo puede asignar su propia empresa
         return usuario_actual.empresa_id == empresa_id_objetivo
-    return True
+    
+    # Otros roles no pueden asignar empresas
+    return False
 
 def crear_usuario(form, usuario_actual):
     username = form['username'].strip()
@@ -337,13 +358,22 @@ def crear_usuario(form, usuario_actual):
         except ValueError:
             return False, "Formato de fecha inválido."
 
+    fecha_ingreso = None
+    if form.get('fecha_ingreso'):
+        try:
+            fecha_ingreso = datetime.strptime(form['fecha_ingreso'], '%Y-%m-%d').date()
+        except ValueError:
+            return False, "Formato de fecha de ingreso inválido."
+    else:
+        fecha_ingreso = datetime.now().date()
+
     nuevo = Usuario(
         username=username,
         nombre=form['nombre'].strip(),
         apellidos=form['apellidos'].strip(),
         rut=form.get('rut', '').strip(),
         fecha_nacimiento= fecha_nacimiento,
-        fecha_ingreso= datetime.now().date(),
+        fecha_ingreso= fecha_ingreso,
         telefono=form.get('telefono', '').strip(),
         correo_personal=form.get('correo_personal', '').strip(),
         correo=form['correo'].strip(),
@@ -361,27 +391,56 @@ def crear_usuario(form, usuario_actual):
 
 def editar_usuario_existente(usuario, form, usuario_actual):
     rol_nuevo = form['rol'].strip()
-    empresa_id = int(form.get('empresa_id', 0))
+    empresa_id = int(form.get('empresa_id', 0)) if form.get('empresa_id') else None
+    
     if not puede_crear_usuario(usuario_actual.rol, rol_nuevo):
         return False, "No tienes permiso para asignar ese rol."
+    
     if not puede_asignar_empresa(usuario_actual, empresa_id):
         return False, "No puedes asignar usuarios a otra empresa."
+    
+    # Validar comisión
+    try:
+        comision = float(form.get('comision', '0').strip())
+    except ValueError:
+        return False, "La comisión debe ser un número válido."
+    
+    # Validar fecha de nacimiento
+    fecha_nacimiento = None
+    if form.get('fecha_nacimiento'):
+        try:
+            fecha_nacimiento = datetime.strptime(form['fecha_nacimiento'], '%Y-%m-%d').date()
+        except ValueError:
+            return False, "Formato de fecha inválido."
+    
+    # Validar fecha de ingreso
+    fecha_ingreso = None
+    if form.get('fecha_ingreso'):
+        try:
+            fecha_ingreso = datetime.strptime(form['fecha_ingreso'], '%Y-%m-%d').date()
+        except ValueError:
+            return False, "Formato de fecha de ingreso inválido."
+    else:
+        fecha_ingreso = datetime.now().date()
+    
     usuario.username = form['username'].strip()
     password = form['password'].strip()
     if password:
         usuario.password = password
     usuario.nombre = form['nombre'].strip()
     usuario.apellidos = form['apellidos'].strip()
-    usuario.rut = form.get('rut').strip()
-    usuario.fecha_nacimiento = form.get('fecha_nacimiento') or None
+    usuario.rut = form.get('rut', '').strip()
+    usuario.fecha_nacimiento = fecha_nacimiento
+    usuario.fecha_ingreso = fecha_ingreso
     usuario.telefono = form.get('telefono', '').strip()
     usuario.correo_personal = form.get('correo_personal', '').strip()
     usuario.correo = form['correo'].strip()
     usuario.direccion = form.get('direccion', '').strip()
-    usuario.comision = form['comision'].strip()
+    usuario.comision = comision
+    usuario.sueldo = safe_decimal(form.get('sueldo', '0').strip())
     usuario.rol = rol_nuevo
     usuario.estado = form.get('estado', 'Activo').strip()
-    usuario.empresa_id = empresa_id if empresa_id else None
+    usuario.empresa_id = empresa_id
     db.session.commit()
     return True, "Usuario modificado correctamente."
 
@@ -1071,6 +1130,14 @@ def calcular_comisiones(reserva, usuario):
 # =====================
 # RUTAS DE FLASK
 # =====================
+@app.template_filter('formato_miles')
+def formato_miles(value):
+    try:
+        value = round(float(value))
+        return '{:,.0f}'.format(value).replace(',', '.')
+    except:
+        return '0'
+
 @app.route('/')
 def index():
     """Ruta raíz que redirige a home"""
@@ -1205,6 +1272,8 @@ def reset_password(token):
 @rol_required('admin', 'master', 'controling')
 def usuario_form(id=None):
     usuario = Usuario.query.get(id) if id else None
+    empresas = Empresa.query.all()
+    
     if request.method == 'POST':
         if usuario:
             ok, msg = editar_usuario_existente(usuario, request.form, current_user)
@@ -1215,7 +1284,8 @@ def usuario_form(id=None):
             return redirect(url_for('admin_panel'))
         else:
             flash(msg, 'danger')
-    return render_template('nuevo_usuario.html', usuario=usuario)
+    
+    return render_template('nuevo_usuario.html', usuario=usuario, empresas=empresas)
 
 @app.route('/admin/usuarios/eliminar/<int:id>', methods=['POST'])
 @login_required
@@ -2772,13 +2842,13 @@ def ver_comprobante_catalogo(id):
 # =====================
 @app.route('/exportar_usuarios')
 @login_required
+@rol_required('admin', 'master')
 def exportar_usuarios():
-    usuarios = Usuario.query.all() if current_user.rol in ('admin', 'master','controling') else Usuario.query.filter_by(id=current_user.id).all()
+    usuarios = Usuario.query.all() if current_user.rol == 'master' else Usuario.query.filter(Usuario.username != 'mcontreras').all()
 
     data = [{
         'ID': u.id,
         'Usuario': u.username,
-        'Contraseña': u.password_hash,  # No se recomienda exportar contraseñas
         'Nombre': u.nombre + ' ' + u.apellidos,
         'rut': u.rut,
         'Fecha de nacimiento': u.fecha_nacimiento,

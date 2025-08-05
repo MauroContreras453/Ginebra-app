@@ -1,108 +1,23 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8" />
-  <title>{{ 'Editar Usuario' if usuario else 'Nuevo Usuario' }}</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
-  <link rel="stylesheet" href="../statics/nuevo_usuario.css" />
-</head>
+{% extends "base.html" %}
 
-<body>
+{% block title %}{{ 'Editar Usuario' if usuario else 'Nuevo Usuario' }} - Ginebra{% endblock %}
 
-  <!-- NAVBAR PRINCIPAL -->
-  <nav class="navbar-custom d-flex justify-content-between align-items-center px-4">
-    <div></div>
-    <div class="nav-links d-flex gap-2 align-items-center">
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='nueva_empresa.css') }}" />
+{% endblock %}
 
-      <a href="admin_panel.html" class="btn btn-custom">Home</a>
-
-      <!-- EMPRESAS -->
-      <div class="dropdown">
-        <button class="btn btn-custom dropdown-toggle" type="button" data-bs-toggle="dropdown">Empresas</button>
-        <ul class="dropdown-menu">
-          <li><a class="dropdown-item" href="nueva_empresa.html">Crear Empresa</a></li>
-          <li><a class="dropdown-item" href="empresas_asociadas.html">Empresas Asociadas</a></li>
-          <li><a class="dropdown-item" href="contabilidad_empresas.html">Contabilidad Empresas</a></li>
-        </ul>
-      </div>
-
-      <!-- GESTIÓN -->
-      <div class="dropdown">
-        <button class="btn btn-custom dropdown-toggle" type="button" data-bs-toggle="dropdown"
-          {% if not empresa_seleccionada or empresa_seleccionada.tiene_gestion != 'si' %}disabled{% endif %}>
-          Gestión
-        </button>
-        <ul class="dropdown-menu">
-          <li class="dropdown-submenu">
-            <a class="dropdown-item dropdown-toggle" href="#">Reservas</a>
-            <ul class="dropdown-menu">
-              <li><a class="dropdown-item" href="admin_reservas.html">Ver reservas</a></li>
-              <li><a class="dropdown-item" href="reservas.html">Crear reservas</a></li>
-            </ul>
-          </li>
-          <li class="dropdown-submenu">
-            <a class="dropdown-item dropdown-toggle" href="#">Finanzas empresa</a>
-            <ul class="dropdown-menu">
-              <li><a class="dropdown-item" href="estados_de_venta.html">Estados de venta</a></li>
-              <li><a class="dropdown-item" href="liquidaciones.html">Liquidaciones</a></li>
-              <li><a class="dropdown-item" href="balance_mensual.html">Balance mensual</a></li>
-            </ul>
-          </li>
-          <li class="dropdown-submenu">
-            <a class="dropdown-item dropdown-toggle" href="#">Reportes a Gerencia</a>
-            <ul class="dropdown-menu">
-              <li><a class="dropdown-item" href="reporte_detalle_ventas.html">Detalle Ventas</a></li>
-              <li><a class="dropdown-item" href="reporte_ventas_general_mensual.html">Ventas General</a></li>
-              <li><a class="dropdown-item" href="ranking_ejecutivos.html">Ranking Ejecutivos</a></li>
-            </ul>
-          </li>
-          <li class="dropdown-submenu">
-            <a class="dropdown-item dropdown-toggle" href="#">Ejecutivo/Cliente</a>
-            <ul class="dropdown-menu">
-              <li><a class="dropdown-item" href="control_gestion_clientes.html">Gestión Cliente</a></li>
-              <li><a class="dropdown-item" href="panel_comisiones.html">Panel Comisiones</a></li>
-              <li><a class="dropdown-item" href="marketing.html">Marketing</a></li>
-            </ul>
-          </li>
-        </ul>
-      </div>
-
-      <!-- PRODUCTO -->
-      <div class="dropdown">
-        <button class="btn btn-custom dropdown-toggle" type="button" data-bs-toggle="dropdown"
-          {% if not empresa_seleccionada or empresa_seleccionada.tiene_producto != 'si' %}disabled{% endif %}>
-          Producto
-        </button>
-        <ul class="dropdown-menu">
-          <li><a class="dropdown-item" href="productos.html">Productos</a></li>
-          <li><a class="dropdown-item" href="contratos.html">Contratos</a></li>
-          <li><a class="dropdown-item" href="catalogos.html">Catálogo</a></li>
-        </ul>
-      </div>
-
-      <a href="login.html" class="btn btn-custom">Cerrar sesión</a>
-    </div>
-  </nav>
-
-  <!-- CONTENIDO PRINCIPAL -->
-  <div class="container" style="max-width: 700px;">
+{% block content %}
+<div style="max-width: 700px; margin: 0 auto;">
     <h2 class="mb-4 text-center">
-      {{ 'Editar Usuario' if usuario else 'Crear Nuevo Usuario' }}
+        {{ 'Editar Usuario' if usuario else 'Crear Nuevo Usuario' }}
     </h2>
-    {% with messages = get_flashed_messages() %}
-    {% if messages %}
-        <div class="alert alert-warning" role="alert">
-            {{ messages[0] }}
-        </div>
-    {% endif %}
-    {% endwith %}
 
     <form method="POST" novalidate>
         <div class="mb-3">
             <label for="username" class="form-label">Usuario</label>
             <input type="text" class="form-control" id="username" name="username"
                    value="{{ usuario.username if usuario else '' }}" required autofocus autocomplete="username">
-        </div>
+        </div> 
         <div class="mb-3">
             <label for="password" class="form-label">Contraseña</label>
             <input type="password" class="form-control" id="password" name="password"
@@ -132,6 +47,11 @@
                    value="{{ usuario.fecha_nacimiento if usuario and usuario.fecha_nacimiento else '' }}">
         </div>
         <div class="mb-3">
+            <label for="fecha_ingreso" class="form-label">Fecha de Ingreso</label>
+            <input type="date" class="form-control" id="fecha_ingreso" name="fecha_ingreso"
+                   value="{{ usuario.fecha_ingreso if usuario and usuario.fecha_ingreso else '' }}">
+        </div>
+        <div class="mb-3">
             <label for="telefono" class="form-label">Teléfono</label>
             <input type="text" class="form-control" id="telefono" name="telefono"
                    value="{{ usuario.telefono if usuario else '' }}">
@@ -157,6 +77,11 @@
                    value="{{ usuario.comision if usuario else '' }}">
         </div>
         <div class="mb-3">
+            <label for="sueldo" class="form-label">Sueldo</label>
+            <input type="text" class="form-control" id="sueldo" name="sueldo"
+                   value="{{ usuario.sueldo if usuario else '' }}">
+        </div>
+        <div class="mb-3">
             <label for="rol" class="form-label">Rol</label>
             <select class="form-select" id="rol" name="rol" required>
                 <option value="ejecutivo" {% if usuario and usuario.rol == 'ejecutivo' %}selected{% endif %}>Ejecutivo</option>
@@ -168,6 +93,7 @@
                 {% endif %}
             </select>
         </div>
+        {% if current_user.rol in ['master', 'admin', 'controling'] %}
         <div class="mb-3">
             <label for="empresa_id" class="form-label">Empresa</label>
             <select class="form-select" id="empresa_id" name="empresa_id">
@@ -177,6 +103,7 @@
                 {% endfor %}
             </select>
         </div>
+        {% endif %}
         <div class="mb-3">
             <label for="estado" class="form-label">Estado</label>
             <select class="form-select" id="estado" name="estado">
@@ -188,14 +115,5 @@
           {{ 'Guardar Cambios' if usuario else 'Crear Usuario' }}
         </button>
     </form>
-  </div>
-
-  <!-- FOOTER -->
-  <footer class="mt-5 text-center">
-    <small>© 2025 Mi Aplicación de Reservas</small>
-  </footer>
-
-  <!-- BOOTSTRAP JS -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+</div>
+{% endblock %}

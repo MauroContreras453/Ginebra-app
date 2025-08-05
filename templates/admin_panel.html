@@ -40,7 +40,7 @@
         {% if current_user.rol in ['admin', 'master'] %}
             <div class="d-flex gap-2">
                 <a href="{{ url_for('usuario_form') }}" class="btn btn-custom">Nuevo usuario</a>
-                <a href="#" class="btn btn-success">📤 Exportar a Excel</a>
+                <a href="{{ url_for('exportar_usuarios') }}" class="btn btn-success">📤 Exportar a Excel</a>
             </div>
         {% endif %}
     </div>
@@ -64,7 +64,7 @@
                         <td>{{ usuario.nombre }} {{ usuario.apellidos }}</td>
                         <td>{{ usuario.correo }}</td>
                         <td>{{ usuario.telefono or '-' }}</td>
-                        <td>{{ usuario.comision }}%</td>
+                        <td>{{ usuario.comision | formato_miles }}%</td>
                         <td>{{ usuario.rol | upper }}</td>
                         <td>
                             <span class="badge {% if usuario.estado == 'Activo' %}bg-success{% else %}bg-secondary{% endif %}">
