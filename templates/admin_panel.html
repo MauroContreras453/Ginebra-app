@@ -12,7 +12,7 @@
     <h2 class="mb-0">Bienvenido, {{ current_user.nombre }} ({{ current_user.rol | upper }})</h2>
 </div>
 
-<!-- Selección de Empresa -->
+<!-- Selección de Empresa - Solo para master y admin -->
 {% if current_user.rol in ['admin', 'master'] %}
 <form method="POST"
       action="{{ url_for('seleccionar_empresa') }}"
@@ -34,18 +34,68 @@
 {% endif %}
 
 <!-- Panel Admin -->
-<div id="panel-admin" {% if not empresa_seleccionada %}style="display: none;"{% endif %}>
+<div id="panel-admin" {% if current_user.rol in ['admin', 'master'] and not empresa_seleccionada %}style="display: none;"{% endif %}>
+    
+    <!-- Resumen del Sistema para controling -->
+    {% if current_user.rol == 'controling' %}
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Resumen del Sistema y Empresa Actual</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Información de la Empresa</h6>
+                            <p><strong>Empresa:</strong> {{ current_user.empresa.nombre }}</p>
+                            <p><strong>Representante:</strong> {{ current_user.empresa.representante }}</p>
+                            <p><strong>Razon Social:</strong> {{ current_user.empresa.razon_social }}</p>
+                            <p><strong>Estado:</strong> 
+                                <span class="badge bg-{% if current_user.empresa.estado == 'Activa' %}success{% else %}secondary{% endif %}">
+                                    {{ current_user.empresa.estado }}
+                                </span>
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Estadísticas de Usuarios</h6>
+                            <p><strong>Total usuarios:</strong> {{ usuarios|length }}</p>
+                            <p><strong>Usuarios activos:</strong> {{ usuarios|selectattr('estado', 'equalto', 'Activo')|list|length }}</p>
+                            <p><strong>Ejecutivos:</strong> {{ usuarios|selectattr('rol', 'equalto', 'ejecutivo')|list|length }}</p>
+                            <p><strong>Analistas:</strong> {{ usuarios|selectattr('rol', 'equalto', 'analista')|list|length }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Título y botones según el rol -->
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h4 class="mb-0">Usuarios registrados</h4>
-        {% if current_user.rol in ['admin', 'master'] %}
+        <h4 class="mb-0">
+            {% if current_user.rol in ['master', 'admin'] %}
+                Usuarios registrados
+            {% elif current_user.rol == 'controling' %}
+                Usuarios de tu empresa
+            {% else %}
+                Panel de Control
+            {% endif %}
+        </h4>
+        
+        <!-- Botones según permisos -->
+        {% if current_user.rol in ['admin', 'master', 'controling'] %}
             <div class="d-flex gap-2">
                 <a href="{{ url_for('usuario_form') }}" class="btn btn-custom">Nuevo usuario</a>
-                <a href="{{ url_for('exportar_usuarios') }}" class="btn btn-success">📤 Exportar a Excel</a>
+                {% if current_user.rol in ['admin', 'master'] %}
+                    <a href="{{ url_for('exportar_usuarios') }}" class="btn btn-success">📤 Exportar a Excel</a>
+                {% endif %}
             </div>
         {% endif %}
     </div>
 
-    {% if current_user.rol in ['admin', 'master'] %}
+    <!-- Tabla de usuarios para master, admin y controling -->
+    {% if current_user.rol in ['admin', 'master', 'controling'] %}
         <table class="table table-bordered table-hover align-middle">
             <thead>
                 <tr>
@@ -76,14 +126,16 @@
                                 {% set es_master = usuario.username == 'mcontreras' %}
                                 {% if es_master %}
                                     <span class="text-muted">Usuario maestro</span>
-                                {% elif current_user.rol == 'master' or (current_user.rol == 'admin' and usuario.rol not in ['admin', 'master']) %}
+                                {% elif current_user.rol == 'master' or (current_user.rol == 'admin' and usuario.rol not in ['admin', 'master']) or (current_user.rol == 'controling' and usuario.rol in ['ejecutivo', 'analista']) %}
                                     <a href="{{ url_for('usuario_form', id=usuario.id) }}" 
                                        class="btn btn-sm btn-warning">Editar</a>
-                                    <form action="{{ url_for('eliminar_usuario', id=usuario.id) }}" 
-                                          method="post" class="d-inline"
-                                          onsubmit="return confirm('¿Seguro que quieres eliminar este usuario?')">
-                                        <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
-                                    </form>
+                                    {% if current_user.rol in ['master', 'admin'] or (current_user.rol == 'controling' and usuario.rol in ['ejecutivo', 'analista']) %}
+                                        <form action="{{ url_for('eliminar_usuario', id=usuario.id) }}" 
+                                              method="post" class="d-inline"
+                                              onsubmit="return confirm('¿Seguro que quieres eliminar este usuario?')">
+                                            <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
+                                        </form>
+                                    {% endif %}
                                 {% else %}
                                     <span class="text-muted">Sin permisos</span>
                                 {% endif %}
@@ -94,15 +146,18 @@
             </tbody>
         </table>
     {% else %}
+        <!-- Mensaje para analista y ejecutivo -->
         <div class="alert alert-info">
             <h5>Panel de Control</h5>
-            <p>Bienvenido al sistema de gestión Ginebra. Selecciona una opción del menú superior para comenzar.</p>
+            <p>Bienvenido al sistema de gestión Ginebra. Utiliza el menú superior para acceder a las funcionalidades disponibles para tu rol.</p>
+            <p><strong>Tu rol:</strong> {{ current_user.rol | upper }}</p>
+            <p><strong>Empresa:</strong> {{ current_user.empresa.nombre if current_user.empresa else 'No asignada' }}</p>
         </div>
     {% endif %}
 </div>
 
-<!-- Información adicional para empresa seleccionada -->
-{% if empresa_seleccionada %}
+<!-- Información adicional para empresa seleccionada - Solo para master, admin y controling -->
+{% if empresa_seleccionada and current_user.rol in ['master', 'admin', 'controling'] %}
 <div class="row mt-4">
     <div class="col-md-6">
         <div class="card bg-secondary">

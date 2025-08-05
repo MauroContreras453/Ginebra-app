@@ -35,7 +35,7 @@
         <!-- Enlaces de navegación -->
         <div class="nav-links d-flex gap-2 align-items-center">
             {% if current_user.is_authenticated %}
-                <!-- HOME -->
+                <!-- HOME - Todos los roles -->
                 <a href="{{ url_for(ruta_inicio_por_rol(current_user)) }}" class="btn btn-custom">Home</a>
 
                 <!-- EMPRESAS - Solo para admin/master -->
@@ -52,71 +52,145 @@
                 </div>
                 {% endif %}
 
-                <!-- GESTIÓN - Solo si la empresa tiene gestión -->
-                {% if current_user.rol in ['admin', 'master', 'controling', 'ejecutivo'] %}
-                <div class="dropdown">
-                    <button class="btn btn-custom dropdown-toggle" type="button" data-bs-toggle="dropdown"
-                            {% if current_user.empresa and current_user.empresa.tiene_gestion != 'si' %}disabled{% endif %}>
-                        Gestión
-                    </button>
-                    <ul class="dropdown-menu">
-                        <li class="dropdown-submenu">
-                            <a class="dropdown-item dropdown-toggle" href="#">Reservas</a>
-                            <ul class="dropdown-menu">
-                                {% if current_user.rol in ['admin', 'master', 'controling'] %}
-                                <li><a class="dropdown-item" href="{{ url_for('admin_reservas') }}">Ver reservas</a></li>
-                                {% endif %}
-                                {% if current_user.rol in ['admin', 'master', 'controling', 'ejecutivo'] %}
-                                <li><a class="dropdown-item" href="{{ url_for('gestionar_reservas') }}">Crear reservas</a></li>
-                                {% endif %}
-                            </ul>
-                        </li>
-                        {% if current_user.rol in ['admin', 'master'] %}
-                        <li class="dropdown-submenu">
-                            <a class="dropdown-item dropdown-toggle" href="#">Finanzas empresa</a>
-                            <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="{{ url_for('estados_de_venta') }}">Estados de venta</a></li>
-                                <li><a class="dropdown-item" href="{{ url_for('liquidaciones') }}">Liquidaciones</a></li> 
-                                <li><a class="dropdown-item" href="{{ url_for('balance_mensual') }}">Balance mensual</a></li> 
-                            </ul>
-                        </li>
-                        <li class="dropdown-submenu">
-                            <a class="dropdown-item dropdown-toggle" href="#">Reportes a Gerencia</a>
-                            <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="{{ url_for('reporte_detalle_ventas') }}">Detalle Ventas</a></li>
-                                <li><a class="dropdown-item" href="{{ url_for('reporte_ventas_general_mensual') }}">Ventas General</a></li>
-                                <li><a class="dropdown-item" href="{{ url_for('ranking_ejecutivos') }}">Ranking Ejecutivos</a></li>
-                            </ul>
-                        </li>
-                        <li class="dropdown-submenu">
-                            <a class="dropdown-item dropdown-toggle" href="#">Ejecutivo/Cliente</a>
-                            <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="{{ url_for('control_gestion_clientes') }}">Gestión Cliente</a></li>
-                                <li><a class="dropdown-item" href="{{ url_for('panel_comisiones') }}">Panel Comisiones</a></li>
-                                <li><a class="dropdown-item" href="{{ url_for('marketing') }}">Marketing</a></li>
-                            </ul>
-                        </li>
-                        {% endif %}
-                    </ul>
-                </div>
+                <!-- GESTIÓN -->
+                {% if current_user.rol in ['admin', 'master'] %}
+                    <!-- Admin y Master: Acceso completo a gestión -->
+                    <div class="dropdown">
+                        <button class="btn btn-custom dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            Gestión
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li class="dropdown-submenu">
+                                <a class="dropdown-item dropdown-toggle" href="#">Reservas</a>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="{{ url_for('admin_reservas') }}">Ver reservas</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('gestionar_reservas') }}">Crear reservas</a></li>
+                                </ul>
+                            </li>
+                            <li class="dropdown-submenu">
+                                <a class="dropdown-item dropdown-toggle" href="#">Finanzas empresa</a>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="{{ url_for('estados_de_venta') }}">Estados de venta</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('liquidaciones') }}">Liquidaciones</a></li> 
+                                    <li><a class="dropdown-item" href="{{ url_for('balance_mensual') }}">Balance mensual</a></li> 
+                                </ul>
+                            </li>
+                            <li class="dropdown-submenu">
+                                <a class="dropdown-item dropdown-toggle" href="#">Reportes a Gerencia</a>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="{{ url_for('reporte_detalle_ventas') }}">Detalle Ventas</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('reporte_ventas_general_mensual') }}">Ventas General</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('ranking_ejecutivos') }}">Ranking Ejecutivos</a></li>
+                                </ul>
+                            </li>
+                            <li class="dropdown-submenu">
+                                <a class="dropdown-item dropdown-toggle" href="#">Ejecutivo/Cliente</a>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="{{ url_for('control_gestion_clientes') }}">Gestión Cliente</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('panel_comisiones') }}">Panel Comisiones</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('marketing') }}">Marketing</a></li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </div>
+                {% elif current_user.rol == 'controling' and current_user.empresa and current_user.empresa.tiene_gestion == 'si' %}
+                    <!-- Controling: Solo acceso a gestión si su empresa lo permite -->
+                    <div class="dropdown">
+                        <button class="btn btn-custom dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            Gestión
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li class="dropdown-submenu">
+                                <a class="dropdown-item dropdown-toggle" href="#">Reservas</a>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="{{ url_for('admin_reservas') }}">Ver reservas</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('gestionar_reservas') }}">Crear reservas</a></li>
+                                </ul>
+                            </li>
+                            <li class="dropdown-submenu">
+                                <a class="dropdown-item dropdown-toggle" href="#">Finanzas empresa</a>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="{{ url_for('estados_de_venta') }}">Estados de venta</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('liquidaciones') }}">Liquidaciones</a></li> 
+                                    <li><a class="dropdown-item" href="{{ url_for('balance_mensual') }}">Balance mensual</a></li> 
+                                </ul>
+                            </li>
+                            <li class="dropdown-submenu">
+                                <a class="dropdown-item dropdown-toggle" href="#">Reportes a Gerencia</a>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="{{ url_for('reporte_detalle_ventas') }}">Detalle Ventas</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('reporte_ventas_general_mensual') }}">Ventas General</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('ranking_ejecutivos') }}">Ranking Ejecutivos</a></li>
+                                </ul>
+                            </li>
+                            <li class="dropdown-submenu">
+                                <a class="dropdown-item dropdown-toggle" href="#">Ejecutivo/Cliente</a>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="{{ url_for('control_gestion_clientes') }}">Gestión Cliente</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('panel_comisiones') }}">Panel Comisiones</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('marketing') }}">Marketing</a></li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </div>
+                {% elif current_user.rol in ['ejecutivo', 'analista'] %}
+                    <!-- Ejecutivo y Analista: Solo acceso a Reservas -->
+                    <div class="dropdown">
+                        <button class="btn btn-custom dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            Gestión
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li class="dropdown-submenu">
+                                <a class="dropdown-item dropdown-toggle" href="#">Reservas</a>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="{{ url_for('admin_reservas') }}">Ver reservas</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('gestionar_reservas') }}">Crear reservas</a></li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </div>
                 {% endif %}
 
-                <!-- PRODUCTO - Solo si la empresa tiene productos -->
-                {% if current_user.rol in ['admin', 'master', 'analista'] %}
-                <div class="dropdown">
-                    <button class="btn btn-custom dropdown-toggle" type="button" data-bs-toggle="dropdown"
-                            {% if current_user.empresa and current_user.empresa.tiene_productos != 'si' %}disabled{% endif %}>
-                        Producto
-                    </button>
-                    <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="{{ url_for('proveedores') }}">Proveedores</a></li>
-                        <li><a class="dropdown-item" href="{{ url_for('contratos') }}">Contratos</a></li>
-                        <li><a class="dropdown-item" href="{{ url_for('catalogos') }}">Catálogos</a></li>
-                    </ul>
-                </div>
+                <!-- PRODUCTO -->
+                {% if current_user.rol in ['admin', 'master'] %}
+                    <!-- Admin y Master: Acceso completo a productos -->
+                    <div class="dropdown">
+                        <button class="btn btn-custom dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            Producto
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('proveedores') }}">Proveedores</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('contratos') }}">Contratos</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('catalogos') }}">Catálogos</a></li>
+                        </ul>
+                    </div>
+                {% elif current_user.rol == 'controling' and current_user.empresa and current_user.empresa.tiene_productos == 'si' %}
+                    <!-- Controling: Solo si su empresa tiene productos -->
+                    <div class="dropdown">
+                        <button class="btn btn-custom dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            Producto
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('proveedores') }}">Proveedores</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('contratos') }}">Contratos</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('catalogos') }}">Catálogos</a></li>
+                        </ul>
+                    </div>
+                {% elif current_user.rol == 'analista' and current_user.empresa and current_user.empresa.tiene_productos == 'si' %}
+                    <!-- Analista: Solo si su empresa tiene productos -->
+                    <div class="dropdown">
+                        <button class="btn btn-custom dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            Producto
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('proveedores') }}">Proveedores</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('contratos') }}">Contratos</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('catalogos') }}">Catálogos</a></li>
+                        </ul>
+                    </div>
                 {% endif %}
 
-                <!-- CERRAR SESIÓN -->
+                <!-- CERRAR SESIÓN - Todos los roles -->
                 <a href="{{ url_for('logout') }}" class="btn btn-custom">Cerrar sesión</a>
             {% else %}
                 <!-- Navegación para usuarios no autenticados -->

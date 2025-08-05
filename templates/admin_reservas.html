@@ -3,118 +3,170 @@
 {% block title %}Admin Reservas - Panel de Administración{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='empresas_asociadas.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='contabilidad_empresas.css') }}">
 {% endblock %}
 
 {% block content %}
-  <div class="container" style="margin-top: 120px;">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <h3 class="mb-3">📋 Todas las Reservas - Panel Admin</h3>
-        {% if current_user.rol in ['admin', 'master'] %}
-          <div class="d-flex gap-2">
-            <a href="{{ url_for('gestionar_reservas') }}" class="btn btn-custom">Nueva Reserva</a>
-          </div>
+
+<div class="container" style="margin-top: 120px;">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h3 class="mb-0">📋 Gestión de Reservas</h3>
+  </div>
+
+  <!-- Filtros -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <form method="GET" class="row g-3 align-items-end">
+        {% if current_user.rol in ['master', 'admin'] %}
+        <div class="col-md-2">
+          <label for="empresa_id" class="form-label">Filtrar por empresa:</label>
+          <select class="form-select" id="empresa_id" name="empresa_id">
+            <option value="">Todas las empresas</option>
+            {% for empresa in empresas %}
+            <option value="{{ empresa.id }}" {% if empresa.id|string == selected_empresa_id %}selected{% endif %}>
+              {{ empresa.nombre }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
         {% endif %}
-      </div>
+
+        {% if current_user.rol in ['master', 'admin', 'controling'] %}
+        <div class="col-md-2">
+          <label for="usuario_id" class="form-label">Filtrar por usuario:</label>
+          <select class="form-select" id="usuario_id" name="usuario_id">
+            <option value="">Todos los usuarios</option>
+            {% for usuario in usuarios %}
+            <option value="{{ usuario.id }}" {% if usuario.id|string == selected_usuario_id %}selected{% endif %}>
+              {{ usuario.nombre }} {{ usuario.apellidos }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
+
+        <div class="col-md-2">
+          <label for="fecha_venta" class="form-label">Fecha venta:</label>
+          <input type="date" class="form-select" id="fecha_venta" name="fecha_venta" 
+                 value="{{ selected_fecha_venta or '' }}">
+        </div>
+
+        <div class="col-md-2">
+          <label for="fecha_viaje" class="form-label">Fecha viaje:</label>
+          <input type="date" class="form-select" id="fecha_viaje" name="fecha_viaje" 
+                 value="{{ selected_fecha_viaje or '' }}">
+        </div>
+
+        <div class="col-md-1">
+          <button type="submit" class="btn btn-primary">Filtrar</button>
+        </div>
+
+        <div class="col-md-1">
+          <a href="{{ url_for('exportar_reservas_admin', empresa_id=selected_empresa_id, usuario_id=selected_usuario_id, fecha_venta=selected_fecha_venta, fecha_viaje=selected_fecha_viaje) }}" class="btn btn-success w-100">📤 Excel</a>
+        </div>
+
+        <div class="col-md-2">
+          <a href="{{ url_for('gestionar_reservas') }}" class="btn btn-custom w-100">Nueva Reserva</a>
+        </div>
+      </form>
     </div>
+  </div>
 
-    <!-- Formulario de búsqueda -->
-    <form method="get" class="mb-4">
-      <div class="input-group">
-        <input type="text" class="form-control" name="search" placeholder="Buscar reservas..." value="{{ search_query or '' }}">
-        <button class="btn btn-custom" type="submit">Buscar</button>
-        {% if search_query %}
-          <a href="{{ url_for('admin_reservas') }}" class="btn btn-outline-light">Limpiar</a>
-        {% endif %}
+  <!-- Tabla de reservas -->
+  <div class="card">
+    <div class="card-body">
+      {% if reservas.items %}
+      <div class="table-responsive">
+        <table class="table table-bordered table-hover text-white align-middle">
+          <thead>
+            <tr>
+              <th>Usuario</th>
+              <th>Fecha venta</th>
+              <th>Fecha viaje</th>
+              <th>Producto</th>
+              <th>Nombre pasajero</th>
+              <th>Teléfono</th>
+              <th>Mail</th>
+              <th>Localizadores</th>
+              <th>Destino</th>
+              <th>Estado</th>
+              <th class="text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for reserva in reservas.items %}
+            <tr>
+              <td>{{ reserva.usuario.username if reserva.usuario else 'Sin usuario' }}</td>
+              <td>{{ reserva.fecha_venta.strftime('%Y-%m-%d') if reserva.fecha_venta else '-' }}</td>
+              <td>{{ reserva.fecha_viaje.strftime('%Y-%m-%d') if reserva.fecha_viaje else '-' }}</td>
+              <td>{{ reserva.producto or '-' }}</td>
+              <td>{{ reserva.nombre_pasajero or '-' }}</td>
+              <td>{{ reserva.telefono_pasajero or '-' }}</td>
+              <td>{{ reserva.mail_pasajero or '-' }}</td>
+              <td>{{ reserva.localizadores or '-' }}</td>
+              <td>{{ reserva.destino or '-' }}</td>
+              <td>
+                {% if reserva.estado_pago == 'Pagado' and reserva.venta_cobrada == 'Cobrada' and reserva.venta_emitida == 'Emitida' %}
+                  <span class="badge bg-success">OK</span>
+                {% else %}
+                  <span class="badge bg-warning text-dark">Pendiente</span>
+                {% endif %}
+              </td>
+              <td class="text-center">
+                <div class="d-inline-flex gap-2">
+                  {% if reserva.comprobante_venta %}
+                    <a href="{{ url_for('descargar_comprobante', reserva_id=reserva.id) }}" target="_blank" title="Ver PDF" class="btn btn-sm btn-info">PDF</a>
+                  {% endif %}
+                  {% if current_user.rol in ['admin', 'master'] or reserva.usuario_id == current_user.id %}
+                    <a href="{{ url_for('gestionar_reservas', editar=reserva.id) }}" class="btn btn-sm btn-warning">Editar</a>
+                  {% endif %}
+                  {% if current_user.rol in ['admin', 'master'] %}
+                    <form action="{{ url_for('eliminar_reserva', id=reserva.id) }}" method="post" class="d-inline" onsubmit="return confirm('¿Eliminar esta reserva?')">
+                      <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
+                    </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
-    </form>
 
-    <!-- Tabla de reservas -->
-    {% if current_user.rol in ['admin', 'master'] %}
-    <table class="table table-bordered table-hover text-white align-middle">
-      <thead>
-        <tr>
-          <th>Usuario</th>
-          <th>Fecha venta</th>
-          <th>Fecha viaje</th>
-          <th>Producto</th>
-          <th>Nombre pasajero</th>
-          <th>Teléfono</th>
-          <th>Mail</th>
-          <th>Localizadores</th>
-          <th>Destino</th>
-          <th>Estado</th>
-          <th class="text-center">Acciones</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for reserva in reservas %}
-        <tr>
-          <td>{{ reserva.usuario.username }}</td>
-          <td>{{ reserva.fecha_venta }}</td>
-          <td>{{ reserva.fecha_viaje }}</td>
-          <td>{{ reserva.producto }}</td>
-          <td>{{ reserva.nombre_pasajero }}</td>
-          <td>{{ reserva.telefono_pasajero }}</td>
-          <td>{{ reserva.mail_pasajero }}</td>
-          <td>{{ reserva.localizadores }}</td>
-          <td>{{ reserva.destino }}</td>
-          <td>
-            {% if reserva.estado_pago == 'Pagado' and reserva.venta_cobrada == 'Cobrada' and reserva.venta_emitida == 'Emitida' %}
-              <span class="badge bg-success">ok</span>
-            {% else %}
-              <span class="badge bg-danger">not ok</span>
-            {% endif %}
-          </td>
-          <td class="text-center">
-            <div class="d-inline-flex gap-2">
-              {% if reserva.comprobante_venta %}
-                <a href="{{ url_for('descargar_comprobante', reserva_id=reserva.id) }}" target="_blank" title="Ver PDF" class="btn btn-sm btn-info">PDF</a>
-              {% endif %}
-              {% if current_user.rol in ['admin', 'master'] or reserva.usuario_id == current_user.id %}
-                <a href="{{ url_for('gestionar_reservas', editar=reserva.id) }}" class="btn btn-sm btn-warning">Editar</a>
-              {% endif %}
-              {% if current_user.rol in ['admin', 'master'] %}
-                <form action="{{ url_for('eliminar_reserva', id=reserva.id) }}" method="post" class="d-inline" onsubmit="return confirm('¿Eliminar esta reserva?')">
-                  <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
-                </form>
-              {% endif %}
-            </div>
-          </td>
-        </tr>
-        {% else %}
-        <tr>
-          <td colspan="11" class="text-center">No hay reservas registradas.</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% endif %}
-
-    <!-- Paginación -->
-    <nav aria-label="Page navigation">
-      <ul class="pagination justify-content-center">
-        {% if pagination.has_prev %}
-        <li class="page-item">
-          <a class="page-link" href="{{ url_for('admin_reservas', page=pagination.prev_num, search=search_query) }}">&laquo;</a>
-        </li>
-        {% endif %}
-        {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
-          {% if page_num %}
-            <li class="page-item {% if pagination.page == page_num %}active{% endif %}">
-              <a class="page-link" href="{{ url_for('admin_reservas', page=page_num, search=search_query) }}">{{ page_num }}</a>
-            </li>
-          {% else %}
-            <li class="page-item disabled"><a class="page-link" href="#">...</a></li>
+      <!-- Paginación -->
+      {% if reservas.pages > 1 %}
+      <nav aria-label="Page navigation" class="mt-3">
+        <ul class="pagination justify-content-center">
+          {% if reservas.has_prev %}
+          <li class="page-item">
+            <a class="page-link" href="{{ url_for('admin_reservas', page=reservas.prev_num, empresa_id=selected_empresa_id, usuario_id=selected_usuario_id, fecha_venta=selected_fecha_venta, fecha_viaje=selected_fecha_viaje) }}">&laquo;</a>
+          </li>
           {% endif %}
-        {% endfor %}
-        {% if pagination.has_next %}
-        <li class="page-item">
-          <a class="page-link" href="{{ url_for('admin_reservas', page=pagination.next_num, search=search_query) }}">&raquo;</a>
-        </li>
-        {% endif %}
-      </ul>
-    </nav>
+          {% for page_num in reservas.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+            {% if page_num %}
+              <li class="page-item {% if reservas.page == page_num %}active{% endif %}">
+                <a class="page-link" href="{{ url_for('admin_reservas', page=page_num, empresa_id=selected_empresa_id, usuario_id=selected_usuario_id, fecha_venta=selected_fecha_venta, fecha_viaje=selected_fecha_viaje) }}">{{ page_num }}</a>
+              </li>
+            {% else %}
+              <li class="page-item disabled"><a class="page-link" href="#">...</a></li>
+            {% endif %}
+          {% endfor %}
+          {% if reservas.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="{{ url_for('admin_reservas', page=reservas.next_num, empresa_id=selected_empresa_id, usuario_id=selected_usuario_id, fecha_venta=selected_fecha_venta, fecha_viaje=selected_fecha_viaje) }}">&raquo;</a>
+          </li>
+          {% endif %}
+        </ul>
+      </nav>
+      {% endif %}
+
+      {% else %}
+      <div class="text-center py-5">
+        <p class="mb-0">No hay reservas que coincidan con los filtros seleccionados.</p>
+        <a href="{{ url_for('gestionar_reservas') }}" class="btn btn-custom mt-3">Crear primera reserva</a>
+      </div>
+      {% endif %}
+    </div>
   </div>
 </div>
 {% endblock %}

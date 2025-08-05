@@ -93,7 +93,8 @@
                 {% endif %}
             </select>
         </div>
-        {% if current_user.rol in ['master', 'admin', 'controling'] %}
+        <!-- Empresa - Solo para master y admin -->
+        {% if current_user.rol in ['master', 'admin'] %}
         <div class="mb-3">
             <label for="empresa_id" class="form-label">Empresa</label>
             <select class="form-select" id="empresa_id" name="empresa_id">
@@ -102,6 +103,14 @@
                 <option value="{{ empresa.id }}" {% if usuario and usuario.empresa_id == empresa.id %}selected{% endif %}>{{ empresa.nombre }}</option>
                 {% endfor %}
             </select>
+        </div>
+        {% elif current_user.rol == 'controling' %}
+        <!-- Para controling, empresa se asigna automáticamente (campo oculto) -->
+        <input type="hidden" name="empresa_id" value="{{ current_user.empresa_id }}">
+        <div class="mb-3">
+            <label class="form-label">Empresa</label>
+            <input type="text" class="form-control" value="{{ current_user.empresa.nombre }}" readonly disabled>
+            <small class="form-text text-muted">Los usuarios serán creados automáticamente en tu empresa.</small>
         </div>
         {% endif %}
         <div class="mb-3">

@@ -1211,38 +1211,59 @@ def login():
 
 @app.route('/login/admin')
 @login_required
-@rol_required('admin', 'master')
+@rol_required('admin', 'master', 'controling', 'analista', 'ejecutivo')
 def admin_panel():
-    usuarios = Usuario.query.all() if current_user.rol == 'master' else Usuario.query.filter(Usuario.username != 'mcontreras').all()
-    empresas = Empresa.query.all()
+    # Configurar datos según el rol
+    if current_user.rol == 'master':
+        usuarios = Usuario.query.all()
+        empresas = Empresa.query.all()
+    elif current_user.rol == 'admin':
+        usuarios = Usuario.query.filter(Usuario.username != 'mcontreras').all()
+        empresas = Empresa.query.all()
+    elif current_user.rol == 'controling':
+        usuarios = usuarios_de_empresa_actual()
+        empresas = []  # Controling no ve lista de empresas
+    else:  # analista, ejecutivo
+        usuarios = usuarios_de_empresa_actual()
+        empresas = []
+    
+    # Manejar empresa seleccionada
     empresa_seleccionada = None
-    empresa_id = session.get('empresa_id_seleccionada')
-    if empresa_id:
-        empresa_seleccionada = Empresa.query.get(empresa_id)
-    return render_template('admin_panel.html', usuarios=usuarios, empresas=empresas, empresa_seleccionada=empresa_seleccionada)
+    if current_user.rol in ['master', 'admin']:
+        empresa_id = session.get('empresa_id_seleccionada')
+        if empresa_id:
+            empresa_seleccionada = Empresa.query.get(empresa_id)
+    elif current_user.rol in ['controling', 'analista', 'ejecutivo']:
+        # Para estos roles, la empresa seleccionada es automáticamente su empresa
+        empresa_seleccionada = current_user.empresa
+    
+    return render_template('admin_panel.html', 
+                         usuarios=usuarios, 
+                         empresas=empresas, 
+                         empresa_seleccionada=empresa_seleccionada)
 
 @app.route('/login/controling')
 @login_required
 @rol_required('controling')
 def controling_panel():
-    usuarios = usuarios_de_empresa_actual()
-    return render_template('controling_panel.html', usuarios=usuarios)
+    # Redirigir a admin_panel
+    return redirect(url_for('admin_panel'))
 
 @app.route('/login/analista')
 @login_required
 @empresa_tiene_productos_required
 @rol_required('analista')
 def analista_panel():
-    usuarios = usuarios_de_empresa_actual()
-    return render_template('analista_panel.html', usuarios=usuarios)
+    # Redirigir a admin_panel
+    return redirect(url_for('admin_panel'))
 
 @app.route('/login/ejecutivo')
 @login_required
 @empresa_tiene_gestion_required
 @rol_required('ejecutivo')
 def ejecutivo_panel():
-    usuarios = usuarios_de_empresa_actual()
-    return render_template('ejecutivo_panel.html', usuarios=usuarios)
+    # Redirigir a admin_panel
+    return redirect(url_for('admin_panel'))
 
 @app.route('/logout')
 @login_required
@@ -1674,18 +1695,163 @@ def exportar_facturas():
         download_name=filename
     )
 
+@app.route('/exportar_reservas_admin')
+@login_required
+@rol_required('admin', 'master', 'controling', 'ejecutivo', 'analista')
+def exportar_reservas_admin():
+    """Exportar reservas con filtros aplicados desde admin_reservas"""
+    empresa_param = request.args.get('empresa_id', '')
+    usuario_param = request.args.get('usuario_id', '')
+    fecha_venta_param = request.args.get('fecha_venta', '')
+    fecha_viaje_param = request.args.get('fecha_viaje', '')
+    
+    # Construir consulta base igual que en admin_reservas
+    query = Reserva.query.join(Usuario)
+    
+    # Aplicar filtros basados en el rol del usuario
+    if current_user.rol in ['ejecutivo', 'analista']:
+        query = query.filter(Reserva.usuario_id == current_user.id)
+    elif current_user.rol == 'controling':
+        query = query.filter(Usuario.empresa_id == current_user.empresa_id)
+    
+    # Aplicar filtros adicionales
+    if empresa_param and empresa_param.strip() and current_user.rol in ['master', 'admin']:
+        query = query.filter(Usuario.empresa_id == int(empresa_param))
+    
+    if usuario_param and usuario_param.strip() and current_user.rol in ['master', 'admin', 'controling']:
+        query = query.filter(Reserva.usuario_id == int(usuario_param))
+    
+    if fecha_venta_param and fecha_venta_param.strip():
+        query = query.filter(db.func.date(Reserva.fecha_venta) == fecha_venta_param)
+    
+    if fecha_viaje_param and fecha_viaje_param.strip():
+        query = query.filter(db.func.date(Reserva.fecha_viaje) == fecha_viaje_param)
+    
+    reservas = query.order_by(Reserva.fecha_venta.desc()).all()
+    
+    # Preparar datos para Excel
+    data = [{
+        'ID': r.id,
+        'Usuario': f"{r.usuario.nombre} {r.usuario.apellidos}" if r.usuario else 'Sin usuario',
+        'Empresa': r.usuario.empresa.nombre if r.usuario and r.usuario.empresa else 'Sin empresa',
+        'Fecha Venta': r.fecha_venta.strftime('%Y-%m-%d') if r.fecha_venta else '',
+        'Fecha Viaje': r.fecha_viaje.strftime('%Y-%m-%d') if r.fecha_viaje else '',
+        'Producto': r.producto or '',
+        'Nombre Pasajero': r.nombre_pasajero or '',
+        'Teléfono': r.telefono_pasajero or '',
+        'Email': r.mail_pasajero or '',
+        'Localizadores': r.localizadores or '',
+        'Destino': r.destino or '',
+        'Estado Pago': r.estado_pago or '',
+        'Venta Cobrada': r.venta_cobrada or '',
+        'Venta Emitida': r.venta_emitida or '',
+        'Precio Total': float(r.precio_venta_total) if r.precio_venta_total else 0
+    } for r in reservas]
+    
+    # Crear archivo Excel
+    df = pd.DataFrame(data)
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name='Reservas', index=False)
+        
+        # Ajustar ancho de columnas
+        worksheet = writer.sheets['Reservas']
+        for idx, col in enumerate(df.columns):
+            max_length = max(
+                df[col].astype(str).map(len).max(),
+                len(col)
+            ) + 2
+            worksheet.column_dimensions[chr(65 + idx)].width = min(max_length, 50)
+    
+    output.seek(0)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    
+    # Crear nombre de archivo descriptivo basado en filtros
+    filename_parts = ['reservas']
+    if empresa_param and empresa_param.strip():
+        filename_parts.append(f'empresa_{empresa_param}')
+    if usuario_param and usuario_param.strip():
+        filename_parts.append(f'usuario_{usuario_param}')
+    if fecha_venta_param and fecha_venta_param.strip():
+        filename_parts.append(f'venta_{fecha_venta_param.replace("-", "_")}')
+    if fecha_viaje_param and fecha_viaje_param.strip():
+        filename_parts.append(f'viaje_{fecha_viaje_param.replace("-", "_")}')
+    filename_parts.append(timestamp)
+    filename = '_'.join(filename_parts) + '.xlsx'
+    
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=filename
+    )
+
 # =====================
 # ADMIN / RESERVAS
 # =====================
 @app.route('/admin/reservas')
 @login_required
-@rol_required('admin', 'master', 'controling')
+@rol_required('admin', 'master', 'controling', 'ejecutivo', 'analista')
 def admin_reservas():
-    search_query = request.args.get('search', '').strip()
+    # Obtener parámetros de filtro
+    empresa_param = request.args.get('empresa_id', '')
+    usuario_param = request.args.get('usuario_id', '')
+    fecha_venta_param = request.args.get('fecha_venta', '')
+    fecha_viaje_param = request.args.get('fecha_viaje', '')
     page = request.args.get('page', 1, type=int)
-    per_page = 10  # Número de elementos por página
-    contexto = obtener_datos_admin_reservas(search_query, page, per_page)
-    return render_template('admin_reservas.html', **contexto)
+    per_page = 10
+    
+    # Construir consulta base
+    query = Reserva.query.join(Usuario)
+    
+    # Aplicar filtros basados en el rol del usuario
+    if current_user.rol in ['ejecutivo', 'analista']:
+        # Solo ver sus propias reservas
+        query = query.filter(Reserva.usuario_id == current_user.id)
+    elif current_user.rol == 'controling':
+        # Solo ver reservas de su empresa
+        query = query.filter(Usuario.empresa_id == current_user.empresa_id)
+    
+    # Aplicar filtros adicionales
+    selected_empresa_id = empresa_param
+    if empresa_param and current_user.rol in ['master', 'admin']:
+        query = query.filter(Usuario.empresa_id == int(empresa_param))
+    
+    selected_usuario_id = usuario_param
+    if usuario_param and current_user.rol in ['master', 'admin', 'controling']:
+        query = query.filter(Reserva.usuario_id == int(usuario_param))
+    
+    selected_fecha_venta = fecha_venta_param
+    if fecha_venta_param:
+        query = query.filter(db.func.date(Reserva.fecha_venta) == fecha_venta_param)
+    
+    selected_fecha_viaje = fecha_viaje_param
+    if fecha_viaje_param:
+        query = query.filter(db.func.date(Reserva.fecha_viaje) == fecha_viaje_param)
+    
+    # Obtener datos para los filtros
+    empresas = []
+    usuarios = []
+    
+    if current_user.rol in ['master', 'admin']:
+        empresas = Empresa.query.all()
+        usuarios = Usuario.query.order_by(Usuario.nombre, Usuario.apellidos).all()
+    elif current_user.rol == 'controling':
+        usuarios = Usuario.query.filter(Usuario.empresa_id == current_user.empresa_id).order_by(Usuario.nombre, Usuario.apellidos).all()
+    
+    # Paginar resultados
+    reservas = query.order_by(Reserva.fecha_venta.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    
+    return render_template('admin_reservas.html', 
+                         reservas=reservas,
+                         empresas=empresas,
+                         usuarios=usuarios,
+                         selected_empresa_id=selected_empresa_id,
+                         selected_usuario_id=selected_usuario_id,
+                         selected_fecha_venta=selected_fecha_venta,
+                         selected_fecha_viaje=selected_fecha_viaje)
 
 # =====================
 # ADMIN / GESTION
