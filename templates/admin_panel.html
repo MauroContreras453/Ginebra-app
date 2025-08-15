@@ -198,21 +198,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
-    // Mostrar/ocultar panel basado en empresa seleccionada
-    document.addEventListener('DOMContentLoaded', function() {
-        const empresaSelect = document.querySelector('select[name="empresa_id"]');
-        const panelAdmin = document.getElementById('panel-admin');
-        
-        if (empresaSelect) {
-            empresaSelect.addEventListener('change', function() {
-                if (this.value) {
-                    // Se podría mostrar el panel inmediatamente o esperar a confirmar
-                } else {
-                    panelAdmin.style.display = 'none';
-                }
-            });
-        }
-    });
-</script>
+<script src="{{ url_for('static', filename='scripts/admin_panel.js') }}"></script>
 {% endblock %}

@@ -705,6 +705,84 @@ def obtener_meses_anteriores(n=12, idioma='es'):
     meses.reverse()
     return meses
 
+def obtener_datos_reporte_detalle_ventas(selected_mes_str):
+    meses_anteriores = obtener_meses_anteriores()
+    try:
+        month_name, year_str = selected_mes_str.split(' ')
+        month_num = datetime.strptime(month_name, '%B').month
+        year = int(year_str)
+        start_date = datetime(year, month_num, 1)
+        if month_num == 12:
+            end_date = datetime(year + 1, 1, 1) - timedelta(days=1)
+        else:
+            end_date = datetime(year, month_num + 1, 1) - timedelta(days=1)
+    except Exception:
+        today = datetime.now()
+        start_date, end_date = today, today
+
+    reservas_query = Reserva.query.join(Usuario).filter(
+        Reserva.fecha_venta >= start_date.strftime('%Y-%m-%d'),
+        Reserva.fecha_venta <= end_date.strftime('%Y-%m-%d')
+    )
+
+    reporte_data_dict = {}
+    for reserva in reservas_query.all():
+        ejecutivo_id = reserva.nombre_ejecutivo or ''
+        correo_ejecutivo = reserva.correo_ejecutivo or ''
+        rol_ejecutivo = reserva.usuario.rol
+        comision_ejecutivo_porcentaje = safe_decimal(reserva.usuario.comision) / Decimal('100.0')
+        total_neto = (
+            reserva.hotel_neto +
+            reserva.vuelo_neto +
+            reserva.traslado_neto +
+            reserva.seguro_neto +
+            reserva.circuito_neto +
+            reserva.crucero_neto +
+            reserva.excursion_neto +
+            reserva.paquete_neto
+        )
+        ganancia_bruta = reserva.precio_venta_total - total_neto
+        comision_usuario = ganancia_bruta * comision_ejecutivo_porcentaje
+        ganancia_neta = ganancia_bruta - comision_usuario
+        bonos = reserva.bonos or 0.0
+
+        if ejecutivo_id not in reporte_data_dict:
+            reporte_data_dict[ejecutivo_id] = {
+                'Ejecutivo': ejecutivo_id,
+                'Correo Ejecutivo': correo_ejecutivo,
+                'Rol Ejecutivo': rol_ejecutivo,
+                'Total Ventas': 0.0,
+                'Total Costos': 0.0,
+                'Total Comisiones Ejecutivo': 0.0,
+                'Total Bonos': 0.0,
+                'Total Ganancia': 0.0,
+                'N° de Ventas Realizadas': 0
+            }
+        reporte_data_dict[ejecutivo_id]['Total Ventas'] += reserva.precio_venta_total
+        reporte_data_dict[ejecutivo_id]['Total Costos'] += total_neto
+        reporte_data_dict[ejecutivo_id]['Total Comisiones Ejecutivo'] += comision_usuario
+        reporte_data_dict[ejecutivo_id]['Total Bonos'] += bonos
+        reporte_data_dict[ejecutivo_id]['Total Ganancia'] += ganancia_neta
+        reporte_data_dict[ejecutivo_id]['N° de Ventas Realizadas'] += 1
+
+    reporte_data = list(reporte_data_dict.values())
+
+    totales = {
+        'total_ventas_global': sum(r['Total Ventas'] for r in reporte_data),
+        'total_costos_global': sum(r['Total Costos'] for r in reporte_data),
+        'total_comisiones_global': sum(r['Total Comisiones Ejecutivo'] for r in reporte_data),
+        'total_bonos_global': sum(r['Total Bonos'] for r in reporte_data),
+        'total_ganancia_neta_global': sum(r['Total Ganancia'] for r in reporte_data),
+        'total_ventas_realizadas_global': sum(r['N° de Ventas Realizadas'] for r in reporte_data)
+    }
+
+    return {
+        'reporte_data': reporte_data,
+        'totales': totales,
+        'selected_mes_str': selected_mes_str,
+        'meses_anteriores': meses_anteriores
+    }
+
 def obtener_datos_admin_reservas(search_query, page, per_page):
     reservas_query = Reserva.query
 
@@ -810,19 +888,19 @@ def obtener_datos_panel_comisiones(ejecutivo_id, rango_fechas_str):
         })
 
         # Sumar a los totales
-        totales['precio_venta_total'] += reserva.precio_venta_total or 0
-        totales['hotel_neto'] += reserva.hotel_neto or 0
-        totales['vuelo_neto'] += reserva.vuelo_neto or 0
-        totales['traslado_neto'] += reserva.traslado_neto or 0
-        totales['seguro_neto'] += reserva.seguro_neto or 0
-        totales['circuito_neto'] += reserva.circuito_neto or 0
-        totales['crucero_neto'] += reserva.crucero_neto or 0
-        totales['excursion_neto'] += reserva.excursion_neto or 0
-        totales['paquete_neto'] += reserva.paquete_neto or 0
-        totales['bonos'] += bonos or 0
-        totales['ganancia_total'] += ganancia_total or 0
-        totales['comision_ejecutivo'] += comision_ejecutivo or 0
-        totales['comision_agencia'] += comision_agencia or 0
+    totales['precio_venta_total'] += float(reserva.precio_venta_total or 0)
+    totales['hotel_neto'] += float(reserva.hotel_neto or 0)
+    totales['vuelo_neto'] += float(reserva.vuelo_neto or 0)
+    totales['traslado_neto'] += float(reserva.traslado_neto or 0)
+    totales['seguro_neto'] += float(reserva.seguro_neto or 0)
+    totales['circuito_neto'] += float(reserva.circuito_neto or 0)
+    totales['crucero_neto'] += float(reserva.crucero_neto or 0)
+    totales['excursion_neto'] += float(reserva.excursion_neto or 0)
+    totales['paquete_neto'] += float(reserva.paquete_neto or 0)
+    totales['bonos'] += float(bonos or 0)
+    totales['ganancia_total'] += float(ganancia_total or 0)
+    totales['comision_ejecutivo'] += float(comision_ejecutivo or 0)
+    totales['comision_agencia'] += float(comision_agencia or 0)
 
     return {
         'datos_comisiones': datos_comisiones,
@@ -833,32 +911,6 @@ def obtener_datos_panel_comisiones(ejecutivo_id, rango_fechas_str):
         'meses_anteriores': meses_anteriores,
         'selected_ejecutivo_id': ejecutivo_id,
         'selected_rango_fechas': rango_fechas_str
-    }
-
-
-def obtener_datos_reporte_detalle_ventas(selected_mes_str):
-    """
-    Devuelve datos de ejemplo para el reporte de detalle de ventas.
-    Esta función debe ser implementada según los requerimientos reales.
-    """
-    meses_anteriores = obtener_meses_anteriores()
-    # Si no hay mes seleccionado, usar el actual
-    if not selected_mes_str:
-        today = datetime.now()
-        selected_mes_str = today.strftime('%Y-%m')
-    # Datos de ejemplo vacíos
-    reporte_data = []
-    totales = {
-        'precio_venta_total': 0.0,
-        'precio_venta_neto': 0.0,
-        'comision_ejecutivo': 0.0,
-        'comision_agencia': 0.0
-    }
-    return {
-        'reporte_data': reporte_data,
-        'totales': totales,
-        'selected_mes_str': selected_mes_str,
-        'meses_anteriores': meses_anteriores
     }
 
 def obtener_datos_ranking_ejecutivos(selected_mes_str):
@@ -1380,26 +1432,6 @@ def nueva_empresa():
         return redirect(url_for('admin_panel'))
     return render_template('nueva_empresa.html')
 
-@app.route('/seleccionar_empresa', methods=['POST'])
-@login_required
-@rol_required('admin', 'master')
-def seleccionar_empresa():
-    empresa_id = request.form.get('empresa_id')
-    if empresa_id:
-        session['empresa_id_seleccionada'] = int(empresa_id)
-        flash('Empresa seleccionada correctamente.', 'success')
-    else:
-        flash('Por favor selecciona una empresa.', 'danger')
-    return redirect(url_for('admin_panel'))
-
-@app.route('/admin/empresas')
-@login_required
-@rol_required('admin', 'master')
-def empresas_asociadas():
-    """Página para ver todas las empresas asociadas"""
-    empresas = Empresa.query.all()
-    return render_template('empresas_asociadas.html', empresas=empresas)
-
 @app.route('/admin/empresas/editar/<int:id>', methods=['GET', 'POST'])
 @login_required
 @rol_required('admin', 'master')
@@ -1443,6 +1475,26 @@ def eliminar_empresa(id):
     db.session.commit()
     flash('Empresa eliminada correctamente.', 'success')
     return redirect(url_for('empresas_asociadas'))
+
+@app.route('/seleccionar_empresa', methods=['POST'])
+@login_required
+@rol_required('admin', 'master')
+def seleccionar_empresa():
+    empresa_id = request.form.get('empresa_id')
+    if empresa_id:
+        session['empresa_id_seleccionada'] = int(empresa_id)
+        flash('Empresa seleccionada correctamente.', 'success')
+    else:
+        flash('Por favor selecciona una empresa.', 'danger')
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/empresas')
+@login_required
+@rol_required('admin', 'master')
+def empresas_asociadas():
+    """Página para ver todas las empresas asociadas"""
+    empresas = Empresa.query.all()
+    return render_template('empresas_asociadas.html', empresas=empresas)
 
 @app.route('/admin/contabilidad')
 @login_required
@@ -1894,7 +1946,6 @@ def ranking_ejecutivos():
 @rol_required('admin', 'master')
 def reporte_detalle_ventas():
     selected_mes_str = request.args.get('mes', '')
-    # Función obtener_datos_reporte_detalle_ventas debe estar definida, si no, mostrar mensaje de error temporal
     try:
         contexto = obtener_datos_reporte_detalle_ventas(selected_mes_str)
     except Exception:
