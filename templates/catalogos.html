@@ -62,10 +62,14 @@
           </td>
           <td class="text-center">
             <div class="d-inline-flex gap-2">
-              <a href="{{ url_for('editar_catalogo', id=catalogo.id) }}" class="btn btn-sm btn-warning">Editar</a>
-              <form action="{{ url_for('eliminar_catalogo', id=catalogo.id) }}" method="post"
+              <a href="{{ url_for('editar_catalogo', id=catalogo.id) }}" class="icon-action text-warning" title="Editar">
+                <i class="fa-regular fa-pen-to-square"></i>
+              </a>
+              <form action="{{ url_for('eliminar_catalogo', id=catalogo.id) }}" method="post" style="display:inline;"
                 onsubmit="return confirm('¿Seguro que quieres eliminar este catálogo?')">
-                <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
+                <button type="submit" class="icon-action text-danger" title="Eliminar">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
               </form>
             </div>
           </td>

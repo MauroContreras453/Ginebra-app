@@ -29,6 +29,11 @@ h3 {
   font-weight: 600;
 }
 
+h5 {
+  color: #ffffff !important;
+  font-weight: 600;
+}
+
 /* 4. BOTONES */
 .btn-primary {
   background-color: #ff6600 !important;

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Liquidaciones - Panel de Administración{% endblock %}
+{% block title %}Estados de Venta - Panel de Administración{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='liquidaciones.css') }}">
@@ -9,30 +9,24 @@
 {% block content %}
 <div class="container">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="mb-0">Liquidaciones por Ejecutivo</h3>
+        <h3 class="mb-0">Estados de Venta</h3>
     </div>
 
     <!-- Filtros -->
     <div class="card mb-4">
         <div class="card-body">
-            <form method="GET" class="row g-3 align-items-center">
-                <div class="col-md-4">
+            <form method="GET" class="row g-3 align-items-end">
+                <div class="col-md-3">
                     <label for="mes" class="form-label">Filtrar por mes de venta:</label>
-                    <select class="form-select" id="mes" name="mes" onchange="this.form.submit()">
-                        {% for mes in meses_anteriores %}
-                        <option value="{{ mes }}" {% if mes == selected_mes_str %}selected{% endif %}>
-                            {{ mes }}
-                        </option>
-                        {% endfor %}
-                    </select>
+                    <input type="month" class="form-select" id="mes" name="mes" value="{{ selected_mes_str or '' }}">
                 </div>
-                <div class="col-md-4">
-                    <label for="ejecutivo" class="form-label">Filtrar por ejecutivo:</label>
-                    <select class="form-select" id="ejecutivo" name="ejecutivo" onchange="this.form.submit()">
-                        <option value="">Todos los ejecutivos</option>
-                        {% for ejecutivo in ejecutivos_disponibles %}
-                        <option value="{{ ejecutivo }}" {% if ejecutivo == selected_ejecutivo %}selected{% endif %}>
-                            {{ ejecutivo }}
+                <div class="col-md-3">
+                    <label for="empresa_id" class="form-label">Filtrar por empresa:</label>
+                    <select class="form-select" id="empresa_id" name="empresa_id">
+                        <option value="">Todas las empresas</option>
+                        {% for empresa in empresas %}
+                        <option value="{{ empresa.id }}" {% if empresa.id|string == selected_empresa_id %}selected{% endif %}>
+                            {{ empresa.nombre }}
                         </option>
                         {% endfor %}
                     </select>
@@ -44,17 +38,17 @@
         </div>
     </div>
 
-    <!-- Tabla de liquidaciones -->
+    <!-- Tabla de estados de venta -->
     <div class="card">
         <div class="card-body">
-            {% if liquidaciones_data %}
+            {% if estados_data %}
             <div class="table-responsive">
                 <table class="table table-bordered table-hover text-white align-middle">
                     <thead>
                         <tr>
                             <th>ID Reserva</th>
                             <th>Ejecutivo</th>
-                            <th>Fecha Venta</th>
+                            <th>Fecha Emitida</th>
                             <th>Fecha Viaje</th>
                             <th>Localizadores</th>
                             <th>Estado de Pago</th>
@@ -67,42 +61,42 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for liquidacion in liquidaciones_data %}
+                        {% for estado in estados_data %}
                         <tr>
-                            <td>{{ liquidacion.reserva_id }}</td>
-                            <td>{{ liquidacion.ejecutivo }}</td>
-                            <td>{{ liquidacion.fecha_emitida.strftime('%Y-%m-%d') if liquidacion.fecha_emitida else 'N/A' }}</td>
-                            <td>{{ liquidacion.fecha_viaje.strftime('%Y-%m-%d') if liquidacion.fecha_viaje else 'N/A' }}</td>
-                            <td>{{ liquidacion.localizadores or 'N/A' }}</td>
+                            <td>{{ estado.reserva_id }}</td>
+                            <td>{{ estado.ejecutivo }}</td>
+                            <td>{{ estado.fecha_emitida.strftime('%Y-%m-%d') if estado.fecha_emitida else 'N/A' }}</td>
+                            <td>{{ estado.fecha_viaje.strftime('%Y-%m-%d') if estado.fecha_viaje else 'N/A' }}</td>
+                            <td>{{ estado.localizadores or 'N/A' }}</td>
                             <td>
-                                <span class="badge {% if liquidacion.estado_pago == 'Pagado' %}bg-success{% elif liquidacion.estado_pago == 'Pendiente' %}bg-warning{% else %}bg-secondary{% endif %}">
-                                    {{ liquidacion.estado_pago }}
+                                <span class="badge {% if estado.estado_pago == 'Pagado' %}bg-success{% elif estado.estado_pago == 'Pendiente' %}bg-warning{% else %}bg-secondary{% endif %}">
+                                    {{ estado.estado_pago }}
                                 </span>
                             </td>
                             <td>
-                                <span class="badge {% if liquidacion.venta_cobrada == 'Cobrada' %}bg-success{% elif liquidacion.venta_cobrada == 'Pendiente' %}bg-warning{% else %}bg-secondary{% endif %}">
-                                    {{ liquidacion.venta_cobrada }}
+                                <span class="badge {% if estado.venta_cobrada == 'Cobrada' %}bg-success{% elif estado.venta_cobrada == 'Pendiente' %}bg-warning{% else %}bg-secondary{% endif %}">
+                                    {{ estado.venta_cobrada }}
                                 </span>
                             </td>
                             <td>
-                                <span class="badge {% if liquidacion.venta_emitida == 'Emitida' %}bg-success{% elif liquidacion.venta_emitida == 'Pendiente' %}bg-warning{% else %}bg-secondary{% endif %}">
-                                    {{ liquidacion.venta_emitida }}
+                                <span class="badge {% if estado.venta_emitida == 'Emitida' %}bg-success{% elif estado.venta_emitida == 'Pendiente' %}bg-warning{% else %}bg-secondary{% endif %}">
+                                    {{ estado.venta_emitida }}
                                 </span>
                             </td>
-                            <td>${{ "{:,.2f}".format(liquidacion.precio_venta_total) }}</td>
-                            <td>${{ "{:,.2f}".format(liquidacion.precio_venta_neto) }}</td>
-                            <td>${{ "{:,.2f}".format(liquidacion.comision_ejecutivo) }}</td>
-                            <td>${{ "{:,.2f}".format(liquidacion.comision_agencia) }}</td>
+                            <td>${{ "{:,.0f}".format(estado.precio_venta_total).replace(",", ".") }}</td>
+                            <td>${{ "{:,.0f}".format(estado.precio_venta_neto).replace(",", ".") }}</td>
+                            <td>${{ "{:,.0f}".format(estado.comision_ejecutivo).replace(",", ".") }}</td>
+                            <td>${{ "{:,.0f}".format(estado.comision_agencia).replace(",", ".") }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                     <tfoot class="table-dark">
                         <tr>
                             <th colspan="8">TOTALES</th>
-                            <th>${{ "{:,.2f}".format(totales.precio_venta_total) }}</th>
-                            <th>${{ "{:,.2f}".format(totales.precio_venta_neto) }}</th>
-                            <th>${{ "{:,.2f}".format(totales.comision_ejecutivo) }}</th>
-                            <th>${{ "{:,.2f}".format(totales.comision_agencia) }}</th>
+                            <th>${{ "{:,.0f}".format(totales.precio_venta_total).replace(",", ".") }}</th>
+                            <th>${{ "{:,.0f}".format(totales.precio_venta_neto).replace(",", ".") }}</th>
+                            <th>${{ "{:,.0f}".format(totales.comision_ejecutivo).replace(",", ".") }}</th>
+                            <th>${{ "{:,.0f}".format(totales.comision_agencia).replace(",", ".") }}</th>
                         </tr>
                     </tfoot>
                 </table>
@@ -110,26 +104,20 @@
             {% else %}
             <div class="alert alert-info">
                 <h5>No hay datos disponibles</h5>
-                <p>No se encontraron reservas para los filtros seleccionados:</p>
-                <ul>
-                    <li><strong>Mes:</strong> {{ selected_mes_str }}</li>
-                    {% if selected_ejecutivo %}
-                    <li><strong>Ejecutivo:</strong> {{ selected_ejecutivo }}</li>
-                    {% endif %}
-                </ul>
+                <p>No se encontraron reservas para el mes seleccionado: <strong>{{ selected_mes_str }}</strong></p>
             </div>
             {% endif %}
         </div>
     </div>
 
     <!-- Resumen estadístico -->
-    {% if liquidaciones_data %}
+    {% if estados_data %}
     <div class="row mt-4">
         <div class="col-md-3">
             <div class="card bg-primary text-white">
                 <div class="card-body">
                     <h5 class="card-title">Total Reservas</h5>
-                    <h2 class="card-text">{{ liquidaciones_data|length }}</h2>
+                    <h2 class="card-text">{{ estados_data|length }}</h2>
                 </div>
             </div>
         </div>
@@ -137,7 +125,7 @@
             <div class="card bg-success text-white">
                 <div class="card-body">
                     <h5 class="card-title">Ventas Totales</h5>
-                    <h3 class="card-text">${{ "{:,.2f}".format(totales.precio_venta_total) }}</h3>
+                    <h3 class="card-text">${{ "{:,.0f}".format(totales.precio_venta_total).replace(",", ".") }}</h3>
                 </div>
             </div>
         </div>
@@ -145,7 +133,7 @@
             <div class="card bg-warning text-white">
                 <div class="card-body">
                     <h5 class="card-title">Comisiones Ejecutivos</h5>
-                    <h3 class="card-text">${{ "{:,.2f}".format(totales.comision_ejecutivo) }}</h3>
+                    <h3 class="card-text">${{ "{:,.0f}".format(totales.comision_ejecutivo).replace(",", ".") }}</h3>
                 </div>
             </div>
         </div>
@@ -153,44 +141,11 @@
             <div class="card bg-info text-white">
                 <div class="card-body">
                     <h5 class="card-title">Comisiones Agencia</h5>
-                    <h3 class="card-text">${{ "{:,.2f}".format(totales.comision_agencia) }}</h3>
+                    <h3 class="card-text">${{ "{:,.0f}".format(totales.comision_agencia).replace(",", ".") }}</h3>
                 </div>
             </div>
         </div>
     </div>
-
-    <!-- Resumen por ejecutivo -->
-    {% if ejecutivos_resumen %}
-    <div class="card mt-4">
-        <div class="card-header">
-            <h5 class="mb-0">Resumen por Ejecutivo</h5>
-        </div>
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th>Ejecutivo</th>
-                            <th>Cantidad Reservas</th>
-                            <th>Ventas Totales</th>
-                            <th>Comisiones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for ejecutivo_data in ejecutivos_resumen %}
-                        <tr>
-                            <td>{{ ejecutivo_data.ejecutivo }}</td>
-                            <td>{{ ejecutivo_data.cantidad }}</td>
-                            <td>${{ "{:,.2f}".format(ejecutivo_data.ventas_total) }}</td>
-                            <td>${{ "{:,.2f}".format(ejecutivo_data.comisiones_total) }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-    {% endif %}
     {% endif %}
 </div>
 {% endblock %}

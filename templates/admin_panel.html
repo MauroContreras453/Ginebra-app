@@ -109,7 +109,7 @@
                 </tr>
             </thead>
             <tbody>
-                {% for usuario in usuarios %}
+                {% for usuario in usuarios if not empresa_seleccionada or (usuario.empresa_id == empresa_seleccionada.id) %}
                     <tr>
                         <td>{{ usuario.nombre }} {{ usuario.apellidos }}</td>
                         <td>{{ usuario.correo }}</td>
@@ -128,12 +128,16 @@
                                     <span class="text-muted">Usuario maestro</span>
                                 {% elif current_user.rol == 'master' or (current_user.rol == 'admin' and usuario.rol not in ['admin', 'master']) or (current_user.rol == 'controling' and usuario.rol in ['ejecutivo', 'analista']) %}
                                     <a href="{{ url_for('usuario_form', id=usuario.id) }}" 
-                                       class="btn btn-sm btn-warning">Editar</a>
+                                       class="icon-action text-warning" title="Editar">
+                                        <i class="fa-regular fa-pen-to-square"></i>
+                                    </a>
                                     {% if current_user.rol in ['master', 'admin'] or (current_user.rol == 'controling' and usuario.rol in ['ejecutivo', 'analista']) %}
                                         <form action="{{ url_for('eliminar_usuario', id=usuario.id) }}" 
                                               method="post" class="d-inline"
                                               onsubmit="return confirm('¿Seguro que quieres eliminar este usuario?')">
-                                            <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
+                                            <button type="submit" class="icon-action text-danger" title="Eliminar">
+                                                <i class="fa-solid fa-trash"></i>
+                                            </button>
                                         </form>
                                     {% endif %}
                                 {% else %}

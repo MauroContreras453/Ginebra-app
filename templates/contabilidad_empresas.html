@@ -90,9 +90,13 @@
               <td>{{ factura.observaciones if factura.observaciones else '-' }}</td>
               <td class="text-center">
                 <div class="d-inline-flex gap-2">
-                  <a href="{{ url_for('editar_factura', id=factura.id) }}" class="btn btn-sm btn-warning">Editar</a>
-                  <form method="POST" action="{{ url_for('eliminar_factura', id=factura.id) }}" onsubmit="return confirm('¿Seguro que quieres eliminar esta factura?')">
-                    <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
+                  <a href="{{ url_for('editar_factura', id=factura.id) }}" class="icon-action text-warning" title="Editar">
+                    <i class="fa-regular fa-pen-to-square"></i>
+                  </a>
+                  <form method="POST" action="{{ url_for('eliminar_factura', id=factura.id) }}" style="display:inline;" onsubmit="return confirm('¿Seguro que quieres eliminar esta factura?')">
+                    <button type="submit" class="icon-action text-danger" title="Eliminar">
+                      <i class="fa-solid fa-trash"></i>
+                    </button>
                   </form>
                 </div>
               </td>
@@ -109,5 +113,28 @@
       {% endif %}
     </div>
   </div>
+
+    {# Recuadro de resumen de facturas del mes seleccionado #}
+    {% if selected_mes_str and facturas %}
+    <div id="resumen-facturas" class="mt-4">
+      {% set total_monto = facturas | map(attribute='monto') | sum %}
+      {% set todos_pagados = facturas | selectattr('estado', 'equalto', 'Pagado') | list | length == facturas|length %}
+      <div class="card" style="max-width: 500px; margin: 0 auto;">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Resumen del mes: {{ selected_mes_str }}</h5>
+          <p class="mb-2"><strong>Total facturado:</strong> ${{ total_monto | safe_decimal | formato_miles }}</p>
+          {% if todos_pagados %}
+            <div class="alert alert-success mb-0" role="alert">
+              <strong>Estado:</strong> Todas las facturas están pagadas ✅
+            </div>
+          {% else %}
+            <div class="alert alert-danger mb-0" role="alert">
+              <strong>Estado:</strong> Hay facturas pendientes de pago ❌
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}
