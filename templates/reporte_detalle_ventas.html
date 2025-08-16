@@ -12,17 +12,26 @@
         <h3 class="mb-0">Reporte Detalle de Ventas - {{ selected_mes_str }}</h3>
     </div>
 
-    <!-- Filtro por mes -->
+    <!-- Filtros -->
     <div class="card mb-4">
         <div class="card-body">
-            <form method="GET" class="row g-3 align-items-center">
-                <div class="col-md-4">
-                    <label for="mes" class="form-label">Seleccionar Mes:</label>
-                    <select class="form-select" id="mes" name="mes" onchange="this.form.submit()">
-                        {% for month_year in meses_anteriores %}
-                        <option value="{{ month_year }}" {% if selected_mes_str == month_year %}selected{% endif %}>{{ month_year }}</option>
+            <form method="GET" class="row g-3 align-items-end">
+                {% if current_user.rol in ['master', 'admin'] %}
+                <div class="col-md-3">
+                    <label for="empresa_id" class="form-label">Filtrar por empresa:</label>
+                    <select class="form-select" id="empresa_id" name="empresa_id">
+                        <option value="">Todas las empresas</option>
+                        {% for empresa in empresas %}
+                        <option value="{{ empresa.id }}" {% if empresa.id|string == selected_empresa_id %}selected{% endif %}>
+                            {{ empresa.nombre }}
+                        </option>
                         {% endfor %}
                     </select>
+                </div>
+                {% endif %}
+                <div class="col-md-3">
+                    <label for="mes" class="form-label">Filtrar por mes de venta:</label>
+                    <input type="month" class="form-select" id="mes" name="mes" value="{{ selected_mes_str or '' }}">
                 </div>
                 <div class="col-md-2">
                     <button type="submit" class="btn btn-primary">Filtrar</button>
@@ -56,14 +65,13 @@
                         <tr>
                             <td>
                                 {{ data.nombre_ejecutivo }}<br>
-                                <span class="badge bg-secondary">{{ data.rol_ejecutivo|default('user') }}</span><br>
-                                {{ data.correo_ejecutivo }}
+                                <span class="badge bg-secondary">{{ data.rol_ejecutivo|default('user') }}</span>
                             </td>
-                            <td>${{ "%.2f"|format(data.total_ventas) }}</td>
-                            <td>${{ "%.2f"|format(data.total_costos) }}</td>
-                            <td>${{ "%.2f"|format(data.total_comisiones) }}</td>
-                            <td>${{ "%.2f"|format(data.total_bonos) }}</td>
-                            <td>${{ "%.2f"|format(data.ganancia_neta) }}</td>
+                            <td>${{ "{:,.0f}".format(data.total_ventas).replace(",", ".") }}</td>
+                            <td>${{ "{:,.0f}".format(data.total_costos).replace(",", ".") }}</td>
+                            <td>${{ "{:,.0f}".format(data.total_comisiones).replace(",", ".") }}</td>
+                            <td>${{ "{:,.0f}".format(data.total_bonos).replace(",", ".") }}</td>
+                            <td>${{ "{:,.0f}".format(data.ganancia_neta).replace(",", ".") }}</td>
                             <td>{{ data.num_ventas }}</td>
                         </tr>
                         {% else %}
@@ -77,11 +85,11 @@
                     <tfoot class="table-dark">
                         <tr>
                             <th>TOTAL</th>
-                            <th>${{ "%.2f"|format(totales.total_ventas_global) }}</th>
-                            <th>${{ "%.2f"|format(totales.total_costos_global) }}</th>
-                            <th>${{ "%.2f"|format(totales.total_comisiones_global) }}</th>
-                            <th>${{ "%.2f"|format(totales.total_bonos_global) }}</th>
-                            <th>${{ "%.2f"|format(totales.total_ganancia_neta_global) }}</th>
+                            <th>${{ "{:,.0f}".format(totales.total_ventas_global).replace(",", ".") }}</th>
+                            <th>${{ "{:,.0f}".format(totales.total_costos_global).replace(",", ".") }}</th>
+                            <th>${{ "{:,.0f}".format(totales.total_comisiones_global).replace(",", ".") }}</th>
+                            <th>${{ "{:,.0f}".format(totales.total_bonos_global).replace(",", ".") }}</th>
+                            <th>${{ "{:,.0f}".format(totales.total_ganancia_neta_global).replace(",", ".") }}</th>
                             <th>{{ totales.total_ventas_realizadas_global }}</th>
                         </tr>
                     </tfoot>
@@ -111,7 +119,7 @@
             <div class="card bg-success text-white">
                 <div class="card-body">
                     <h5 class="card-title">Ventas Totales</h5>
-                    <h3 class="card-text">${{ "%.2f"|format(totales.total_ventas_global) }}</h3>
+                    <h3 class="card-text">${{ "{:,.0f}".format(totales.total_ventas_global).replace(",", ".") }}</h3>
                 </div>
             </div>
         </div>
@@ -119,7 +127,7 @@
             <div class="card bg-warning text-white">
                 <div class="card-body">
                     <h5 class="card-title">Ganancia Total</h5>
-                    <h3 class="card-text">${{ "%.2f"|format(totales.total_ganancia_neta_global) }}</h3>
+                    <h3 class="card-text">${{ "{:,.0f}".format(totales.total_ganancia_neta_global).replace(",", ".") }}</h3>
                 </div>
             </div>
         </div>
@@ -127,7 +135,7 @@
             <div class="card bg-info text-white">
                 <div class="card-body">
                     <h5 class="card-title">Total Comisiones</h5>
-                    <h3 class="card-text">${{ "%.2f"|format(totales.total_comisiones_global) }}</h3>
+                    <h3 class="card-text">${{ "{:,.0f}".format(totales.total_comisiones_global).replace(",", ".") }}</h3>
                 </div>
             </div>
         </div>

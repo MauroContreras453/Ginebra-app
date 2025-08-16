@@ -6,11 +6,21 @@ h3.mb-0 {
   font-weight: 600;
 }
 
+h5 {
+  color: #ffffff;
+  font-weight: 600;
+}
+
 /* Card styles */
 .card {
   background-color: rgba(0, 34, 68, 0.9);
   border: 1px solid #0066cc;
   border-radius: 8px;
+}
+
+.card-title {
+  color: #ffffff;
+  font-weight: 600;
 }
 
 .card-body {
@@ -131,7 +141,7 @@ h3.mb-0 {
 .card.bg-success {
   background-color: #198754 !important;
 }
-
+ 
 .card.bg-warning {
   background-color: #ffc107 !important;
   color: #000 !important;

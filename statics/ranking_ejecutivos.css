@@ -13,6 +13,11 @@ h3.mb-0 {
   border-radius: 8px;
 }
 
+.card-title {
+  color: #ffffff;
+  font-weight: 600;
+}
+
 .card-body {
   background-color: rgba(0, 34, 68, 0.9);
   color: #fff;
