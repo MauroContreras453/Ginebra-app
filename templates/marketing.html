@@ -6,6 +6,10 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='control_gestion_clientes.css') }}">
 {% endblock %}
 
+{% block extra_js %}
+<script src="{{ url_for('static', filename='scripts/update_opinion_postventa.js') }}"></script>
+{% endblock %}
+
 {% block content %}
 <div class="container">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -16,35 +20,16 @@
     <div class="card mb-4">
         <div class="card-body">
             <form method="GET" class="row g-3 align-items-end">
-                <div class="col-md-3">
-                    <label for="mes" class="form-label">Filtrar por mes de venta:</label>
-                    <input type="month" class="form-select" id="mes" name="mes" value="{{ selected_mes_str or '' }}">
-                </div>
-                {% if current_user.rol in ['master', 'admin'] %}
-                <div class="col-md-3">
-                    <label for="empresa_id" class="form-label">Filtrar por empresa:</label>
-                    <select class="form-select" id="empresa_id" name="empresa_id">
-                        <option value="">Todas las empresas</option>
-                        {% for empresa in empresas %}
-                        <option value="{{ empresa.id }}" {% if empresa.id|string == selected_empresa_id %}selected{% endif %}>
-                            {{ empresa.nombre }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
-                {% endif %}
-                <div class="col-md-3">
-                    <label for="ejecutivo_id" class="form-label">Filtrar por ejecutivo:</label>
-                    <select class="form-select" id="ejecutivo_id" name="ejecutivo_id">
-                        <option value="">Todos los Ejecutivos</option>
-                        {% for user in ejecutivos %}
-                        <option value="{{ user.id }}" {% if user.id == selected_ejecutivo_id %}selected{% endif %}>{{ user.nombre }} {{ user.apellidos }}</option>
-                        {% endfor %}
+                <div class="col-md-4">
+                    <label for="opinion" class="form-label">Filtrar por Opinión:</label>
+                    <select class="form-select" id="opinion" name="opinion">
+                        <option value="">Todas</option>
+                        <option value="si" {% if selected_opinion == 'si' %}selected{% endif %}>Sí</option>
+                        <option value="no" {% if selected_opinion == 'no' %}selected{% endif %}>No</option>
                     </select>
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
                     <button type="submit" class="btn btn-primary me-2">Filtrar</button>
-                    <a href="{{ url_for('exportar_marketing', ejecutivo_id=selected_ejecutivo_id, rango_fechas=selected_mes_str) }}" class="btn btn-success me-2">Exportar</a>
                 </div>
             </form>
         </div>
@@ -58,23 +43,32 @@
                 <table class="table table-bordered table-hover text-white align-middle">
                     <thead>
                         <tr>
-                            <th>Destino</th>
-                            <th>Fecha Venta</th>
-                            <th>Fecha Viaje</th>
                             <th>Nombre Pasajero</th>
-                            <th>Teléfono Pasajero</th>
+                            <th>Destino</th>
+                            <th>Fecha Viaje</th>
+                            <th>Teléfono</th>
                             <th>Mail Pasajero</th>
+                            <th>Opinión</th>
+                            <th>Experiencia</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for reserva in reservas %}
                         <tr>
-                            <td data-label="Destino">{{ reserva.destino }}</td>
-                            <td data-label="Fecha Venta">{{ reserva.fecha_venta }}</td>
-                            <td data-label="Fecha Viaje">{{ reserva.fecha_viaje }}</td>
                             <td data-label="Nombre Pasajero">{{ reserva.nombre_pasajero }}</td>
+                            <td data-label="Destino">{{ reserva.destino }}</td>
+                            <td data-label="Fecha Viaje">{{ reserva.fecha_viaje }}</td>
                             <td data-label="Teléfono">{{ reserva.telefono_pasajero }}</td>
-                            <td data-label="Email">{{ reserva.mail_pasajero }}</td>
+                            <td data-label="Mail Pasajero">{{ reserva.mail_pasajero }}</td>
+                            <td data-label="Opinión">
+                                <select class="form-select form-select-sm" name="opinion_{{ reserva.id }}">
+                                    <option value="si" {% if reserva.opinion == 'si' %}selected{% endif %}>si</option>
+                                    <option value="no" {% if reserva.opinion == 'no' %}selected{% endif %}>no</option>
+                                </select>
+                            </td>
+                            <td data-label="Experiencia">
+                                <input type="text" class="form-control form-control-sm" name="experiencia_{{ reserva.id }}" value="{{ reserva.experiencia or '' }}">
+                            </td>
                         </tr>
                         {% else %}
                         <tr>
@@ -94,43 +88,5 @@
             {% endif %}
         </div>
     </div>
-
-    <!-- Resumen estadístico -->
-    {% if reservas %}
-    <div class="row mt-4">
-        <div class="col-md-3">
-            <div class="card bg-primary text-white">
-                <div class="card-body">
-                    <h5 class="card-title">Total Contactos</h5>
-                    <h2 class="card-text">{{ reservas|length }}</h2>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-success text-white">
-                <div class="card-body">
-                    <h5 class="card-title">Destinos Únicos</h5>
-                    <h3 class="card-text">{{ reservas|map(attribute='destino')|unique|list|length }}</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-warning text-white">
-                <div class="card-body">
-                    <h5 class="card-title">Con Teléfono</h5>
-                    <h3 class="card-text">{{ reservas|selectattr('telefono_pasajero')|list|length }}</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-info text-white">
-                <div class="card-body">
-                    <h5 class="card-title">Con Email</h5>
-                    <h3 class="card-text">{{ reservas|selectattr('mail_pasajero')|list|length }}</h3>
-                </div>
-            </div>
-        </div>
-    </div>
-    {% endif %}
 </div>
 {% endblock %}

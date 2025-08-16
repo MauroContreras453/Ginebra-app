@@ -3,7 +3,7 @@ import os
 import io
 from datetime import datetime, timedelta
 from decimal import Decimal
-from flask import ( Flask, render_template, redirect, url_for, request, flash, send_file, send_from_directory, Response, session)
+from flask import ( Flask, render_template, redirect, url_for, request, flash, send_file, jsonify, Response, session)
 from flask_mail import Mail, Message
 from itsdangerous import URLSafeTimedSerializer
 from flask_sqlalchemy import SQLAlchemy
@@ -49,8 +49,11 @@ login_manager.login_view = "login"
 ALLOWED_EXTENSIONS = {'pdf'}
 MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB
 PER_PAGE = 10 # Constante para el número de elementos por página
+ESTADO_POSTVENTA_OPTIONS = ('ok', 'not ok')
 GESTION_OPTIONS = ('si', 'no')
 PRODUCTOS_OPTIONS = ('si', 'no')
+POSTVENTA_OPTIONS = ('si', 'no')
+OPINION_OPTIONS = ('si', 'no')
 ROLES = ('master', 'admin', 'controling', 'ejecutivo', 'analista')
 ESTADO_PAGO_OPTIONS = ('Pagado', 'No Pagado')
 VENTA_COBRADA_OPTIONS = ('Cobrada', 'No Cobrada')
@@ -64,6 +67,7 @@ class Empresa(db.Model):
     """Modelo para empresas registradas en el sistema."""
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100))
+    logo = db.Column(db.String(200))
     representante = db.Column(db.String(100))
     telefono = db.Column(db.String(20))
     correo = db.Column(db.String(100))
@@ -136,6 +140,7 @@ class Reserva(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'), nullable=False)
     fecha_viaje = db.Column(db.Date, nullable=True, index=True)
+    fecha_fin_viaje = db.Column(db.Date, nullable=True, index=True)
     fecha_venta = db.Column(db.Date, nullable=True, index=True) 
     producto = db.Column(db.String(100), index=True) 
     modalidad_pago = db.Column(db.String(100), index=True)
@@ -166,6 +171,11 @@ class Reserva(db.Model):
     estado_pago = db.Column(db.Enum(*ESTADO_PAGO_OPTIONS, name='estado_pago_reserva'), default='No Pagado')
     venta_cobrada = db.Column(db.Enum(*VENTA_COBRADA_OPTIONS, name='venta_cobrada_options'), default='No Cobrada')
     venta_emitida = db.Column(db.Enum(*VENTA_EMITIDA_OPTIONS, name='venta_emitida_options'), default='No Emitida')
+    opinion = db.Column(db.Enum(*OPINION_OPTIONS, name='estado_opinion_viaje'), default='No')
+    postventa = db.Column(db.Enum(*POSTVENTA_OPTIONS, name='estado_postventa_viaje'), default='No')
+    estado_postventa = db.Column(db.Enum(*ESTADO_POSTVENTA_OPTIONS, name='estado_postventa_viaje'), default='Not ok')
+    experiencia = db.Column(db.Text, nullable=True)
+    seguimiento = db.Column(db.Text, nullable=True)
     usuario = db.relationship('Usuario', backref=db.backref('reservas', lazy=True))
     empresa_id = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=True)
     empresa = db.relationship('Empresa', backref=db.backref('reservas', lazy=True))
@@ -828,8 +838,8 @@ def obtener_datos_control_gestion_clientes(selected_mes_str, selected_empresa_id
         selected_mes_str = today.strftime('%Y-%m')
     reservas_query = Reserva.query.join(Usuario)
     reservas_query = reservas_query.filter(
-        db.extract('year', Reserva.fecha_venta) == year,
-        db.extract('month', Reserva.fecha_venta) == month,
+        db.extract('year', Reserva.fecha_viaje) == year,
+        db.extract('month', Reserva.fecha_viaje) == month,
         Usuario.rol.in_(['ejecutivo', 'analista', 'controling'])
     )
     if selected_empresa_id and current_user.rol in ['master', 'admin']:
@@ -2252,60 +2262,59 @@ def obtener_datos_reporte_ventas_general_mensual(selected_mes_str, selected_empr
 @login_required
 @rol_required('admin', 'master')
 def marketing():
-    selected_mes_str = request.args.get('mes', '')
-    selected_empresa_id = request.args.get('empresa_id', '')
-    selected_ejecutivo_id = request.args.get('ejecutivo_id', type=int)
+    selected_opinion = request.args.get('opinion', '')
     empresas = Empresa.query.all()
-    if selected_empresa_id:
-        ejecutivos = Usuario.query.filter(Usuario.rol.in_(['ejecutivo', 'analista', 'controling']), Usuario.empresa_id == int(selected_empresa_id)).order_by(Usuario.nombre).all()
-    else:
-        ejecutivos = Usuario.query.filter(Usuario.rol.in_(['ejecutivo', 'analista', 'controling'])).order_by(Usuario.nombre).all()
-    contexto = obtener_datos_marketing(selected_mes_str, selected_empresa_id, selected_ejecutivo_id, empresas, ejecutivos)
+    contexto = obtener_datos_marketing(selected_opinion, empresas)
     return render_template('marketing.html', **contexto)
 
-def obtener_datos_marketing(selected_mes_str, selected_empresa_id, selected_ejecutivo_id, empresas, ejecutivos):
-    meses_anteriores = obtener_meses_anteriores()
-    # Si no se especifica mes, usar el actual en formato YYYY-MM
-    if not selected_mes_str:
-        today = datetime.now()
-        selected_mes_str = today.strftime('%Y-%m')
-    # Parsear año y mes
-    try:
-        year, month = map(int, selected_mes_str.split('-'))
-    except Exception:
-        today = datetime.now()
-        year, month = today.year, today.month
-        selected_mes_str = today.strftime('%Y-%m')
-    reservas_query = Reserva.query.join(Usuario)
-    reservas_query = reservas_query.filter(
-        db.extract('year', Reserva.fecha_venta) == year,
-        db.extract('month', Reserva.fecha_venta) == month,
-        Usuario.rol.in_(['ejecutivo', 'analista', 'controling'])
-    )
-    if selected_empresa_id:
-        reservas_query = reservas_query.filter(Usuario.empresa_id == int(selected_empresa_id))
-    if selected_ejecutivo_id:
-        reservas_query = reservas_query.filter(Reserva.usuario_id == selected_ejecutivo_id)
-    reservas = reservas_query.order_by(Reserva.fecha_venta.desc()).all()
+def obtener_datos_marketing(selected_opinion, empresas):
+    reservas_query = Reserva.query
+    if selected_opinion:
+        reservas_query = reservas_query.filter(Reserva.opinion == selected_opinion)
+    reservas = reservas_query.order_by(Reserva.fecha_viaje.desc()).all()
     reservas_data = []
     for r in reservas:
         reservas_data.append({
-            'destino': r.destino,
-            'fecha_venta': r.fecha_venta,
-            'fecha_viaje': r.fecha_viaje,
+            'id': r.id,
             'nombre_pasajero': r.nombre_pasajero,
+            'destino': r.destino,
+            'fecha_viaje': r.fecha_viaje,
             'telefono_pasajero': r.telefono_pasajero,
-            'mail_pasajero': r.mail_pasajero
+            'mail_pasajero': r.mail_pasajero,
+            'opinion': getattr(r, 'opinion', ''),
+            'experiencia': getattr(r, 'experiencia', '')
         })
     return {
         'reservas': reservas_data,
         'empresas': empresas,
-        'ejecutivos': ejecutivos,
-        'meses_anteriores': meses_anteriores,
-        'selected_mes_str': selected_mes_str,
-        'selected_empresa_id': selected_empresa_id,
-        'selected_ejecutivo_id': selected_ejecutivo_id
+        'selected_opinion': selected_opinion
     }
+
+@app.route('/api/update_reserva_opinion_postventa', methods=['POST'])
+def update_reserva_opinion_postventa():
+    data = request.get_json()
+    reserva_id = data.get('reserva_id')
+    opinion = data.get('opinion')
+    postventa = data.get('postventa')
+    experiencia = data.get('experiencia')
+    # Normalizar a minúsculas si es string
+    if isinstance(opinion, str):
+        opinion = opinion.lower()
+    if isinstance(postventa, str):
+        postventa = postventa.lower()
+    if not reserva_id:
+        return jsonify({'success': False, 'message': 'ID de reserva requerido.'}), 400
+    reserva = Reserva.query.get(reserva_id)
+    if not reserva:
+        return jsonify({'success': False, 'message': 'Reserva no encontrada.'}), 404
+    if opinion is not None:
+        reserva.opinion = opinion
+    if postventa is not None:
+        reserva.postventa = postventa
+    if experiencia is not None:
+        reserva.experiencia = experiencia
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'Reserva actualizada correctamente.'})
 
 @app.route('/estados_de_venta')
 @login_required
@@ -3612,9 +3621,9 @@ def exportar_control_gestion_clientes():
     if ejecutivo_id:
         reservas_query = reservas_query.filter(Reserva.usuario_id == ejecutivo_id)
     start_date, end_date = _get_date_range(rango_fechas_str)
-    reservas_query = reservas_query.filter(Reserva.fecha_venta >= start_date.strftime('%Y-%m-%d'),
-                                           Reserva.fecha_venta <= end_date.strftime('%Y-%m-%d'))
-    reservas = reservas_query.order_by(Reserva.fecha_venta.desc()).all()
+    reservas_query = reservas_query.filter(Reserva.fecha_viaje >= start_date.strftime('%Y-%m-%d'),
+                                           Reserva.fecha_viaje <= end_date.strftime('%Y-%m-%d'))
+    reservas = reservas_query.order_by(Reserva.fecha_viaje.desc()).all()
 
     data = [
         {
@@ -3628,7 +3637,9 @@ def exportar_control_gestion_clientes():
             'Destino': r.destino,
             'Producto': r.producto,
             'Fecha de Compra': r.fecha_venta,
-            'Fecha de Viaje': r.fecha_viaje
+            'Fecha de Viaje': r.fecha_viaje,
+            'Opinión': getattr(r, 'opinion', ''),
+            'Postventa': getattr(r, 'postventa', '')
         }
         for r in reservas
     ]
@@ -3700,46 +3711,6 @@ def exportar_reporte_detalle_ventas():
         output,
         as_attachment=True,
         download_name='reporte_detalle_ventas.xlsx',
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
-
-@app.route('/exportar_marketing')
-@login_required
-@rol_required('admin', 'master')
-def exportar_marketing():
-    ejecutivo_id = request.args.get('ejecutivo_id', type=int)
-    rango_fechas_str = request.args.get('rango_fechas', 'ultimos_30_dias')
-
-    reservas_query = Reserva.query.join(Usuario)
-    if ejecutivo_id:
-        reservas_query = reservas_query.filter(Reserva.usuario_id == ejecutivo_id)
-    start_date, end_date = _get_date_range(rango_fechas_str)
-    reservas_query = reservas_query.filter(Reserva.fecha_venta >= start_date.strftime('%Y-%m-%d'),
-                                           Reserva.fecha_venta <= end_date.strftime('%Y-%m-%d'))
-    reservas = reservas_query.order_by(Reserva.fecha_venta.desc()).all()
-
-    data = [
-        {
-            'Destino': r.destino,
-            'Fecha de venta': r.fecha_venta,
-            'Fecha de viaje': r.fecha_viaje,
-            'Nombre pasajero': r.nombre_pasajero,
-            'Teléfono pasajero': r.telefono_pasajero,
-            'Mail pasajero': r.mail_pasajero
-        }
-        for r in reservas
-    ]
-
-    output = io.BytesIO()
-    df = pd.DataFrame(data)
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='Marketing')
-    output.seek(0)
-
-    return send_file(
-        output,
-        as_attachment=True,
-        download_name='marketing.xlsx',
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
 

@@ -6,6 +6,10 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='control_gestion_clientes.css') }}">
 {% endblock %}
 
+{% block extra_js %}
+<script src="{{ url_for('static', filename='scripts/update_opinion_postventa.js') }}"></script>
+{% endblock %}
+
 {% block content %}
 <div class="container">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -17,7 +21,7 @@
         <div class="card-body">
             <form method="GET" class="row g-3 align-items-end">
                 <div class="col-md-3">
-                    <label for="mes" class="form-label">Filtrar por mes de venta:</label>
+                    <label for="mes" class="form-label">Filtrar por mes de Viaje:</label>
                     <input type="month" class="form-select" id="mes" name="mes" value="{{ selected_mes_str or '' }}">
                 </div>
                 {% if current_user.rol in ['master', 'admin'] %}
@@ -58,38 +62,40 @@
                     <thead>
                         <tr>
                             <th>Ejecutivo</th>
-                            <th>Estado de Pago</th>
-                            <th>Venta Cobrada</th>
-                            <th>Venta Emitida</th>
                             <th>Nombre Pasajero</th>
-                            <th>Teléfono Pasajero</th>
-                            <th>Mail Pasajero</th>
                             <th>Destino</th>
                             <th>Producto</th>
                             <th>Fecha de Compra</th>
                             <th>Fecha de Viaje</th>
+                            <th>Teléfono Pasajero</th>
+                            <th>Mail Pasajero</th>
+                            <th>Opinión</th>
+                            <th>Postventa</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for reserva in reservas %}
                         <tr>
                             <td data-label="Ejecutivo">{{ reserva.usuario.username }}</td>
-                            <td data-label="Estado de Pago">
-                                <span class="badge {% if reserva.estado_pago == 'Pagado' %}bg-success{% elif reserva.estado_pago == 'Pendiente' %}bg-warning{% else %}bg-secondary{% endif %}" data-estado-pago>{{ reserva.estado_pago }}</span>
-                            </td>
-                            <td data-label="Venta Cobrada">
-                                <span class="badge {% if reserva.venta_cobrada == 'Cobrada' %}bg-success{% elif reserva.venta_cobrada == 'Pendiente' %}bg-warning{% else %}bg-secondary{% endif %}" data-venta-cobrada>{{ reserva.venta_cobrada }}</span>
-                            </td>
-                            <td data-label="Venta Emitida">
-                                <span class="badge {% if reserva.venta_emitida == 'Emitida' %}bg-success{% elif reserva.venta_emitida == 'Pendiente' %}bg-warning{% else %}bg-secondary{% endif %}" data-venta-emitida>{{ reserva.venta_emitida }}</span>
-                            </td>
                             <td data-label="Nombre Pasajero">{{ reserva.nombre_pasajero }}</td>
-                            <td data-label="Teléfono">{{ reserva.telefono_pasajero }}</td>
-                            <td data-label="Email">{{ reserva.mail_pasajero }}</td>
                             <td data-label="Destino">{{ reserva.destino }}</td>
                             <td data-label="Producto">{{ reserva.producto }}</td>
                             <td data-label="Fecha de Compra">{{ reserva.fecha_venta }}</td>
                             <td data-label="Fecha de Viaje">{{ reserva.fecha_viaje }}</td>
+                            <td data-label="Teléfono">{{ reserva.telefono_pasajero }}</td>
+                            <td data-label="Email">{{ reserva.mail_pasajero }}</td>
+                            <td data-label="Opinión">
+                                <select class="form-select form-select-sm" name="opinion_{{ reserva.id }}">
+                                    <option value="si" {% if reserva.opinion == 'si' %}selected{% endif %}>si</option>
+                                    <option value="no" {% if reserva.opinion != 'si' %}selected{% endif %}>no</option>
+                                </select>
+                            </td>
+                            <td data-label="Postventa">
+                                <select class="form-select form-select-sm" name="postventa_{{ reserva.id }}">
+                                    <option value="si" {% if reserva.postventa == 'si' %}selected{% endif %}>si</option>
+                                    <option value="no" {% if reserva.postventa != 'si' %}selected{% endif %}>no</option>
+                                </select>
+                            </td>
                         </tr>
                         {% else %}
                         <tr>
@@ -113,7 +119,7 @@
     <!-- Resumen estadístico -->
     {% if reservas %}
     <div class="row mt-4">
-        <div class="col-md-3">
+        <div class="col-md-4">
             <div class="card bg-primary text-white">
                 <div class="card-body">
                     <h5 class="card-title">Total Reservas</h5>
@@ -121,27 +127,19 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-4">
             <div class="card bg-success text-white">
                 <div class="card-body">
-                    <h5 class="card-title">Pagadas</h5>
-                    <h3 class="card-text">{{ reservas|selectattr('estado_pago', 'equalto', 'Pagado')|list|length }}</h3>
+                    <h5 class="card-title">Postventa </h5>
+                    <h3 class="card-text">{{ reservas|selectattr('postventa', 'equalto', 'si')|list|length }}</h3>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-4">
             <div class="card bg-warning text-white">
                 <div class="card-body">
-                    <h5 class="card-title">Pendientes</h5>
-                    <h3 class="card-text" id="pendientes-js">0</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-info text-white">
-                <div class="card-body">
-                    <h5 class="card-title">Emitidas</h5>
-                    <h3 class="card-text">{{ reservas|selectattr('venta_emitida', 'equalto', 'Emitida')|list|length }}</h3>
+                    <h5 class="card-title">Opinión </h5>
+                    <h3 class="card-text">{{ reservas|selectattr('opinion', 'equalto', 'si')|list|length }}</h3>
                 </div>
             </div>
         </div>
