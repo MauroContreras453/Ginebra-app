@@ -43,41 +43,53 @@
         </div>
     </div>
 
-    <!-- Tabla de detalle de ventas -->
+
+    <!-- Tabla de comisiones (copiada de panel_comisiones) -->
     <div class="card">
         <div class="card-body">
-            {% if reporte_data %}
+            {% if datos_comisiones %}
             <div class="table-responsive">
                 <table class="table table-bordered table-hover text-white align-middle">
                     <thead>
                         <tr>
-                            <th>Ejecutivo</th>
-                            <th>Total Ventas</th>
-                            <th>Total Costos</th>
-                            <th>Total Comisiones Ejecutivo</th>
-                            <th>Total Bonos</th>
-                            <th>Total Ganancia</th>
-                            <th>N° de Ventas Realizadas</th>
+                            <th>Producto</th>
+                            <th>P. Venta</th>
+                            <th>Hotel</th>
+                            <th>Vuelo</th>
+                            <th>Traslado</th>
+                            <th>Seguro</th>
+                            <th>Circuito</th>
+                            <th>Crucero</th>
+                            <th>Excursión</th>
+                            <th>Paquete</th>
+                            <th>Bonos</th>
+                            <th>Ganancia</th>
+                            <th>Com. Ejec.</th>
+                            <th>Com. Agen.</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for data in reporte_data %}
+                        {% for data in datos_comisiones %}
                         <tr>
-                            <td>
-                                {{ data.nombre_ejecutivo }}<br>
-                                <span class="badge bg-secondary">{{ data.rol_ejecutivo|default('user') }}</span>
-                            </td>
-                            <td>${{ "{:,.0f}".format(data.total_ventas).replace(",", ".") }}</td>
-                            <td>${{ "{:,.0f}".format(data.total_costos).replace(",", ".") }}</td>
-                            <td>${{ "{:,.0f}".format(data.total_comisiones).replace(",", ".") }}</td>
-                            <td>${{ "{:,.0f}".format(data.total_bonos).replace(",", ".") }}</td>
-                            <td>${{ "{:,.0f}".format(data.ganancia_neta).replace(",", ".") }}</td>
-                            <td>{{ data.num_ventas }}</td>
+                            <td data-label="Producto">{{ data.reserva.producto }}</td>
+                            <td data-label="P. Venta">${{ data.precio_venta_total|formato_miles }}</td>
+                            <td data-label="Hotel">${{ data.hotel_neto|formato_miles }}</td>
+                            <td data-label="Vuelo">${{ data.vuelo_neto|formato_miles }}</td>
+                            <td data-label="Traslado">${{ data.traslado_neto|formato_miles }}</td>
+                            <td data-label="Seguro">${{ data.seguro_neto|formato_miles }}</td>
+                            <td data-label="Circuito">${{ data.circuito_neto|formato_miles }}</td>
+                            <td data-label="Crucero">${{ data.crucero_neto|formato_miles }}</td>
+                            <td data-label="Excursión">${{ data.excursion_neto|formato_miles }}</td>
+                            <td data-label="Paquete">${{ data.paquete_neto|formato_miles }}</td>
+                            <td data-label="Bonos">${{ data.bonos|formato_miles }}</td>
+                            <td data-label="Ganancia">${{ data.ganancia_total|formato_miles }}</td>
+                            <td data-label="Com. Ejec.">${{ data.comision_ejecutivo|formato_miles }}</td>
+                            <td data-label="Com. Agen.">${{ data.comision_agencia|formato_miles }}</td>
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="7" class="text-center">
-                                No hay datos de ventas para el mes seleccionado.
+                            <td colspan="14" class="text-center">
+                                No hay datos de comisiones para los filtros seleccionados.
                             </td>
                         </tr>
                         {% endfor %}
@@ -85,12 +97,19 @@
                     <tfoot class="table-dark">
                         <tr>
                             <th>TOTAL</th>
-                            <th>${{ "{:,.0f}".format(totales.total_ventas_global).replace(",", ".") }}</th>
-                            <th>${{ "{:,.0f}".format(totales.total_costos_global).replace(",", ".") }}</th>
-                            <th>${{ "{:,.0f}".format(totales.total_comisiones_global).replace(",", ".") }}</th>
-                            <th>${{ "{:,.0f}".format(totales.total_bonos_global).replace(",", ".") }}</th>
-                            <th>${{ "{:,.0f}".format(totales.total_ganancia_neta_global).replace(",", ".") }}</th>
-                            <th>{{ totales.total_ventas_realizadas_global }}</th>
+                            <th>${{ totales.precio_venta_total|formato_miles }}</th>
+                            <th>${{ totales.hotel_neto|formato_miles }}</th>
+                            <th>${{ totales.vuelo_neto|formato_miles }}</th>
+                            <th>${{ totales.traslado_neto|formato_miles }}</th>
+                            <th>${{ totales.seguro_neto|formato_miles }}</th>
+                            <th>${{ totales.circuito_neto|formato_miles }}</th>
+                            <th>${{ totales.crucero_neto|formato_miles }}</th>
+                            <th>${{ totales.excursion_neto|formato_miles }}</th>
+                            <th>${{ totales.paquete_neto|formato_miles }}</th>
+                            <th>${{ totales.bonos|formato_miles }}</th>
+                            <th>${{ totales.ganancia_total|formato_miles }}</th>
+                            <th>${{ totales.comision_ejecutivo|formato_miles }}</th>
+                            <th>${{ totales.comision_agencia|formato_miles }}</th>
                         </tr>
                     </tfoot>
                 </table>
@@ -98,20 +117,20 @@
             {% else %}
             <div class="alert alert-info">
                 <h5>No hay datos disponibles</h5>
-                <p>No se encontraron ventas para el mes seleccionado: <strong>{{ selected_mes_str }}</strong></p>
+                <p>No se encontraron comisiones para los filtros seleccionados.</p>
             </div>
             {% endif %}
         </div>
     </div>
 
-    <!-- Resumen estadístico -->
-    {% if reporte_data %}
+    <!-- Resumen estadístico (copiado de panel_comisiones) -->
+    {% if datos_comisiones %}
     <div class="row mt-4">
         <div class="col-md-3">
             <div class="card bg-primary text-white">
                 <div class="card-body">
-                    <h5 class="card-title">Total Ejecutivos</h5>
-                    <h2 class="card-text">{{ reporte_data|length }}</h2>
+                    <h5 class="card-title">Total Productos</h5>
+                    <h2 class="card-text">{{ datos_comisiones|length }}</h2>
                 </div>
             </div>
         </div>
@@ -119,23 +138,23 @@
             <div class="card bg-success text-white">
                 <div class="card-body">
                     <h5 class="card-title">Ventas Totales</h5>
-                    <h3 class="card-text">${{ "{:,.0f}".format(totales.total_ventas_global).replace(",", ".") }}</h3>
+                    <h3 class="card-text">${{ totales.precio_venta_total|formato_miles }}</h3>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
             <div class="card bg-warning text-white">
                 <div class="card-body">
-                    <h5 class="card-title">Ganancia Total</h5>
-                    <h3 class="card-text">${{ "{:,.0f}".format(totales.total_ganancia_neta_global).replace(",", ".") }}</h3>
+                    <h5 class="card-title">Total Ganancia</h5>
+                    <h3 class="card-text">${{ totales.ganancia_total|formato_miles }}</h3>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
             <div class="card bg-info text-white">
                 <div class="card-body">
-                    <h5 class="card-title">Total Comisiones</h5>
-                    <h3 class="card-text">${{ "{:,.0f}".format(totales.total_comisiones_global).replace(",", ".") }}</h3>
+                    <h5 class="card-title">Comisiones Ejecutivos</h5>
+                    <h3 class="card-text">${{ totales.comision_ejecutivo|formato_miles }}</h3>
                 </div>
             </div>
         </div>

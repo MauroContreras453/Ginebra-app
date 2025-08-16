@@ -58,7 +58,7 @@
             <div class="card bg-success text-white">
                 <div class="card-body">
                     <h5 class="card-title">Ganancia Total del Mes</h5>
-                    <h3 class="card-text">${{ "%.0f"|format(ganancia_total_mes) }}</h3>
+                    <h3 class="card-text">${{ "%.0f"|format(ganancia_total_mes)|formato_miles }}</h3>
                 </div>
             </div>
         </div>
@@ -66,7 +66,7 @@
             <div class="card bg-warning text-white">
                 <div class="card-body">
                     <h5 class="card-title">Comisión Total Ejecutivos</h5>
-                    <h3 class="card-text">${{ "%.0f"|format(comision_total_ejecutivos) }}</h3>
+                    <h3 class="card-text">${{ "%.0f"|format(comision_total_ejecutivos)|formato_miles }}</h3>
                 </div>
             </div>
         </div>
@@ -74,7 +74,7 @@
             <div class="card bg-info text-white">
                 <div class="card-body">
                     <h5 class="card-title">Comisión Total Agencia</h5>
-                    <h3 class="card-text">${{ "%.0f"|format(comision_total_agencia) }}</h3>
+                    <h3 class="card-text">${{ "%.0f"|format(comision_total_agencia)|formato_miles }}</h3>
                 </div>
             </div>
         </div>
