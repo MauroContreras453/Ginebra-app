@@ -1,0 +1,104 @@
+{# Plantilla solo para PDF, incluye solo el contenido de la card/container #}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Liquidación de Sueldo</title>
+    <style>
+        body { background: #fff; }
+        .container, .card { box-shadow: none !important; border: none !important; }
+    </style>
+</head>
+<body>
+<div class="container" style="max-width: 700px; margin-top: 40px;">
+    <div class="card shadow">
+        <div class="card-body">
+
+            <table style="width:100%; margin-bottom:20px; border:none; color:#000;">
+                <tr>
+                    <td style="text-align:left; font-size:1.6em; font-weight:bold;">{{ empresa.nombre }}</td>
+                    <td style="text-align:right;">Periodo: {{ periodo }}</td>
+                </tr>
+            </table>
+
+            <table style="width:100%; margin-bottom:20px; border:none; color:#000;">
+                <tr><td style="text-align:center; font-size:1.4em; font-weight:bold;">LIQUIDACIÓN DE HONORARIOS</td></tr>
+                <tr><td style="text-align:center;">{{ empresa.nombre }}</td></tr>
+                <tr><td style="text-align:center;">RUT: {{ empresa.razon_social }}</td></tr>
+                <tr><td style="text-align:center;">Dirección: {{ empresa.direccion }}</td></tr>
+            </table>
+
+            <table style="width:100%; margin-bottom:20px; border:none; color: #000;">
+                <tr>
+                    <td style="text-align:center;">RUT Trabajador: {{ usuario.rut }}</td>
+                </tr>
+                <tr>
+                    <td style="text-align:center;">Nombre: {{ usuario.nombre }} {{ usuario.apellidos }}</td>
+                </tr>
+                <tr>
+                    <td style="text-align:center;">N° Boleta SII: {{ boleta_sii or '' }}</td>
+                </tr>
+                <tr>
+                    <td style="text-align:center;">Banco: {{ usuario.banco }}</td>
+                </tr>
+                <tr>
+                    <td style="text-align:center;">Cuenta: {{ usuario.cuenta_bancaria }}</td>
+                </tr>
+            </table>
+            <form method="post">
+                <table class="table table-bordered mt-4" style="width:100%;">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="font-weight: bold; color: #000; width:50%;">Detalles</th>
+                            <th style="font-weight: bold; color: #000; width:25%; text-align:right;">Haberes</th>
+                            <th style="font-weight: bold; color: #000; width:25%; text-align:right;">Descuentos</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Honorarios Brutos</td>
+                            <td style="text-align:right;">${{ honorarios_brutos | formato_miles }}</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Sueldo</td>
+                            <td style="text-align:right;">${{ sueldo | formato_miles }}</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Bonos</td>
+                            <td style="text-align:right;">${{ bonos | formato_miles }}</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Retención SII (13%)</td>
+                            <td></td>
+                            <td style="text-align:right;">${{ retencion_sii | formato_miles }}</td>
+                        </tr>
+                        <tr>
+                            <td>Descuentos</td>
+                            <td></td>
+                            <td style="text-align:right;">${{ descuentos | formato_miles }}</td>
+                        </tr>
+                        <tr style="font-weight:bold; background:#f5f5f5;">
+                            <td>Totales:</td>
+                            <td style="text-align:right;">${{ (honorarios_brutos + sueldo + bonos) | formato_miles }}</td>
+                            <td style="text-align:right;">${{ (retencion_sii + descuentos) | formato_miles }}</td>
+                        </tr>
+                        <tr class="table-success">
+                            <th style="text-align:right;">TOTAL LÍQUIDO A PAGAR</th>
+                            <th style="text-align:right;">${{ total_liquido | formato_miles }}</th>
+                            <th></th>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="mt-4">
+                    <strong>Forma de pago:</strong> Transferencia bancaria<br>
+                    <strong>Fecha de pago:</strong> {{ fecha_pago }}
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+</body>
+</html>

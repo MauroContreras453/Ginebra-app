@@ -19,7 +19,7 @@
                 {% if current_user.rol in ['master', 'admin'] %}
                 <div class="col-md-3">
                     <label for="empresa_id" class="form-label">Filtrar por empresa:</label>
-                    <select class="form-select" id="empresa_id" name="empresa_id">
+                    <select class="form-select" id="empresa_id" name="empresa_id" onchange="this.form.submit()">
                         <option value="">Todas las empresas</option>
                         {% for empresa in empresas %}
                         <option value="{{ empresa.id }}" {% if empresa.id|string == selected_empresa_id %}selected{% endif %}>
@@ -84,7 +84,7 @@
                                 </select>
                             </td>
                             <td>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" disabled>PDF</button>
+                                <a href="{{ url_for('ver_liquidacion', usuario_id=estado.id, periodo=selected_mes_str.split(' ')[0]) }}" class="btn btn-outline-primary btn-sm" target="_blank">Generar PDF</a>
                             </td>
                         </tr>
                         {% endfor %}

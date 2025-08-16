@@ -53,7 +53,7 @@
                     <thead>
                         <tr>
                             <th>Mes</th>
-                            <th>Ingresos por agentes</th>
+                            <th>Ingreso neto</th>
                             <th>Ingresos externos</th>
                             <th>Egresos por comisión</th>
                             <th>Egresos por administración</th>
@@ -66,7 +66,7 @@
                         {% for mes in balance_data %}
                         <tr data-mes="{{ mes.numero }}">
                             <td>{{ mes.nombre }}</td>
-                            <td class="ingresos-agentes">${{ "{:,.0f}".format(mes.ingresos_agentes or 0).replace(",", ".") }}</td>
+                            <td class="ingreso-neto">${{ "{:,.0f}".format(mes.precio_venta_neto or 0).replace(",", ".") }}</td>
                             <td>
                                 <input type="text" class="form-control form-control-sm input-miles ingresos-externos" name="ingresos_externos_{{ mes.numero }}" value="{{ mes.ingresos_externos or 0 }}">
                             </td>
@@ -78,10 +78,10 @@
                                 <input type="text" class="form-control form-control-sm input-miles otros-egresos" name="otros_egresos_{{ mes.numero }}" value="{{ mes.otros_egresos or 0 }}">
                             </td>
                             <td class="ganancia-perdida">
-                                ${{ "{:,.0f}".format((mes.ingresos_agentes or 0) + (mes.ingresos_externos or 0) - (mes.egresos_comision or 0) - (mes.egresos_administracion or 0) - (mes.otros_egresos or 0)).replace(",", ".") }}
+                                ${{ "{:,.0f}".format((mes.precio_venta_neto or 0) + (mes.ingresos_externos or 0) - (mes.egresos_comision or 0) - (mes.egresos_administracion or 0) - (mes.otros_egresos or 0)).replace(",", ".") }}
                             </td>
                             <td class="margen-porcentaje">
-                                {% set ingresos = (mes.ingresos_agentes or 0) + (mes.ingresos_externos or 0) %}
+                                {% set ingresos = (mes.precio_venta_neto or 0) + (mes.ingresos_externos or 0) %}
                                 {% set egresos = (mes.egresos_comision or 0) + (mes.egresos_administracion or 0) + (mes.otros_egresos or 0) %}
                                 {% if egresos > 0 and ingresos > 0 %}
                                     {{ (100 - ((egresos / ingresos) * 100))|round(1) }}%

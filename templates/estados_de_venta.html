@@ -45,43 +45,49 @@
         <div class="card-body">
             {% if estados_data %}
             <div class="table-responsive">
-                <table class="table table-bordered table-hover text-white align-middle">
+                <table class="table table-bordered table-hover text-white align-middle" style="font-size: 0.75rem;">
                     <thead>
                         <tr>
                             <th>Ejecutivo</th>
-                            <th>Precio Venta Total</th>
-                            <th>Precio Venta Neto</th>
-                            <th>Comisión Ejecutivo</th>
-                            <th>Comisión Agencia</th>
-                            <th>N° Ventas</th>
+                            <th>ID</th>
+                            <th>Fecha viaje</th>
+                            <th>Producto</th>
+                            <th>Destino</th>
+                            <th>Localizadores</th>
+                            <th>Nombre pasajero</th>
+                            <th>Teléfono pasajero</th>
+                            <th>Mail pasajero</th>
+                            <th>Estado venta</th>
+                            <th>Venta cobrada</th>
+                            <th>Venta emitida</th>
+                            <th>Acción</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for estado in estados_data %}
+                        {% for reserva in estados_data %}
                         <tr>
-                            <td>{{ estado.ejecutivo }}</td>
-                            <td>${{ "{:,.0f}".format(estado.precio_venta_total).replace(",", ".") }}</td>
-                            <td>${{ "{:,.0f}".format(estado.precio_venta_neto).replace(",", ".") }}</td>
-                            <td>${{ "{:,.0f}".format(estado.comision_ejecutivo).replace(",", ".") }}</td>
-                            <td>${{ "{:,.0f}".format(estado.comision_agencia).replace(",", ".") }}</td>
-                            <td>{{ estado.num_ventas }}</td>
+                            <td>{{ reserva.ejecutivo }}</td>
+                            <td>{{ reserva.id }}</td>
+                            <td>{{ reserva.fecha_viaje }}</td>
+                            <td>{{ reserva.producto }}</td>
+                            <td>{{ reserva.destino }}</td>
+                            <td>{{ reserva.localizadores }}</td>
+                            <td>{{ reserva.nombre_pasajero }}</td>
+                            <td>{{ reserva.telefono_pasajero }}</td>
+                            <td>{{ reserva.mail_pasajero }}</td>
+                            <td>{{ reserva.estado_pago }}</td>
+                            <td>{{ reserva.venta_cobrada }}</td>
+                            <td>{{ reserva.venta_emitida }}</td>
+                            <td>
+                                <a href="{{ url_for('admin_reservas', reserva_id=reserva.id) }}" class="btn btn-sm btn-primary">Editar</a>
+                                <a href="{{ url_for('ver_pdf_db', reserva_id=reserva.id) }}" class="btn btn-sm btn-secondary">Ver PDF</a>
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
-                    <tfoot class="table-dark">
-                        <tr>
-                            <th>TOTALES</th>
-                            <th>${{ "{:,.0f}".format(totales.precio_venta_total).replace(",", ".") }}</th>
-                            <th>${{ "{:,.0f}".format(totales.precio_venta_neto).replace(",", ".") }}</th>
-                            <th>${{ "{:,.0f}".format(totales.comision_ejecutivo).replace(",", ".") }}</th>
-                            <th>${{ "{:,.0f}".format(totales.comision_agencia).replace(",", ".") }}</th>
-                            <th>{{ totales.num_ventas }}</th>
-                        </tr>
-                    </tfoot>
                 </table>
             </div>
-            {% endif %}
-            {% if not estados_data %}
+            {% else %}
             <div class="alert alert-info">
                 <h5>No hay datos disponibles</h5>
                 <p>No se encontraron reservas para el mes seleccionado: <strong>{{ selected_mes_str }}</strong></p>
@@ -91,37 +97,37 @@
     </div>
 
     <!-- Resumen estadístico -->
-    {% if estados_data %}
+    {% if resumen %}
     <div class="row mt-4">
         <div class="col-md-3">
             <div class="card bg-primary text-white">
                 <div class="card-body">
                     <h5 class="card-title">Número de Ventas</h5>
-                    <h2 class="card-text">{{ totales.num_ventas }}</h2>
+                    <h2 class="card-text">{{ resumen.num_ventas }}</h2>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
             <div class="card bg-success text-white">
                 <div class="card-body">
-                    <h5 class="card-title">Ventas Totales</h5>
-                    <h3 class="card-text">${{ "{:,.0f}".format(totales.precio_venta_total).replace(",", ".") }}</h3>
+                    <h5 class="card-title">Ventas Cobradas</h5>
+                    <h3 class="card-text">{{ resumen.num_ventas_cobradas }}</h3>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
             <div class="card bg-warning text-white">
                 <div class="card-body">
-                    <h5 class="card-title">Comisiones Ejecutivos</h5>
-                    <h3 class="card-text">${{ "{:,.0f}".format(totales.comision_ejecutivo).replace(",", ".") }}</h3>
+                    <h5 class="card-title">Ventas Emitidas</h5>
+                    <h3 class="card-text">{{ resumen.num_ventas_emitidas }}</h3>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
             <div class="card bg-info text-white">
                 <div class="card-body">
-                    <h5 class="card-title">Comisiones Agencia</h5>
-                    <h3 class="card-text">${{ "{:,.0f}".format(totales.comision_agencia).replace(",", ".") }}</h3>
+                    <h5 class="card-title">Ventas Pagadas</h5>
+                    <h3 class="card-text">{{ resumen.num_ventas_pagadas }}</h3>
                 </div>
             </div>
         </div>
