@@ -1882,11 +1882,17 @@ def admin_reservas():
     
     selected_fecha_venta = fecha_venta_param
     if fecha_venta_param:
-        query = query.filter(db.func.date(Reserva.fecha_venta) == fecha_venta_param)
-    
+        # fecha_venta_param viene como 'YYYY-MM' del input type=month
+        year, month = map(int, fecha_venta_param.split('-'))
+        query = query.filter(db.extract('year', Reserva.fecha_venta) == year,
+                             db.extract('month', Reserva.fecha_venta) == month)
+
     selected_fecha_viaje = fecha_viaje_param
     if fecha_viaje_param:
-        query = query.filter(db.func.date(Reserva.fecha_viaje) == fecha_viaje_param)
+        # fecha_viaje_param viene como 'YYYY-MM' del input type=month
+        year, month = map(int, fecha_viaje_param.split('-'))
+        query = query.filter(db.extract('year', Reserva.fecha_viaje) == year,
+                             db.extract('month', Reserva.fecha_viaje) == month)
     
     # Obtener datos para los filtros
     empresas = []
@@ -1976,7 +1982,6 @@ def estados_de_venta():
     """Página para ver estados de venta filtrados por mes de fecha de viaje"""
     selected_mes_str = request.args.get('mes', '')
     selected_empresa_id = request.args.get('empresa_id', '')
-    # Si no hay mes seleccionado, usar el mes actual en formato YYYY-MM
     if not selected_mes_str:
         today = datetime.now()
         selected_mes_str = today.strftime('%Y-%m')
@@ -1984,158 +1989,146 @@ def estados_de_venta():
     # Parsear el mes seleccionado (espera formato YYYY-MM)
     try:
         year, month = map(int, selected_mes_str.split('-'))
-        start_date = datetime(year, month, 1)
-        if month == 12:
-            end_date = datetime(year + 1, 1, 1) - timedelta(days=1)
-        else:
-            end_date = datetime(year, month + 1, 1) - timedelta(days=1)
     except Exception:
         today = datetime.now()
-        start_date = datetime(today.year, today.month, 1)
-        if today.month == 12:
-            end_date = datetime(today.year + 1, 1, 1) - timedelta(days=1)
-        else:
-            end_date = datetime(today.year, today.month + 1, 1) - timedelta(days=1)
+        year, month = today.year, today.month
         selected_mes_str = today.strftime('%Y-%m')
 
-
-    # Filtrar reservas por fecha de viaje (no fecha de venta)
-    reservas_query = Reserva.query.join(Usuario).filter(
-        Reserva.fecha_viaje >= start_date.strftime('%Y-%m-%d'),
-        Reserva.fecha_viaje <= end_date.strftime('%Y-%m-%d')
+    # Filtrar reservas por fecha de venta (no fecha de viaje)
+    reservas_query = Reserva.query.join(Usuario)
+    reservas_query = reservas_query.filter(
+        db.extract('year', Reserva.fecha_venta) == year,
+        db.extract('month', Reserva.fecha_venta) == month
     )
-    # Filtro por empresa si se selecciona
-    if selected_empresa_id:
-        reservas_query = reservas_query.filter(
-            Usuario.empresa_id == int(selected_empresa_id),
-            Usuario.rol.in_(['ejecutivo', 'controling', 'analista'])
-        )
+    if selected_empresa_id and current_user.rol in ['master', 'admin']:
+        reservas_query = reservas_query.filter(Usuario.empresa_id == int(selected_empresa_id))
+    elif current_user.rol == 'controling':
+        reservas_query = reservas_query.filter(Usuario.empresa_id == current_user.empresa_id)
 
-    reservas = reservas_query.order_by(Reserva.fecha_viaje.desc()).all()
+    # Incluir ejecutivos, analistas y controling
+    reservas_query = reservas_query.filter(Usuario.rol.in_(['ejecutivo', 'analista', 'controling']))
 
-    # Preparar datos para la tabla
+    reservas = reservas_query.all()
+
+    # Agrupar por ejecutivo
+    resumen = {}
+    for reserva in reservas:
+        ejecutivo = reserva.nombre_ejecutivo or (reserva.usuario.username if reserva.usuario else 'N/A')
+        comision_ejecutivo, comision_agencia, ganancia_total, _, precio_venta_neto = calcular_comisiones(reserva, reserva.usuario)
+        if ejecutivo not in resumen:
+            resumen[ejecutivo] = {
+                'ejecutivo': ejecutivo,
+                'precio_venta_total': 0.0,
+                'precio_venta_neto': 0.0,
+                'comision_ejecutivo': 0.0,
+                'comision_agencia': 0.0,
+                'num_ventas': 0
+            }
+        resumen[ejecutivo]['precio_venta_total'] += float(reserva.precio_venta_total or 0)
+        resumen[ejecutivo]['precio_venta_neto'] += float(precio_venta_neto or 0)
+        resumen[ejecutivo]['comision_ejecutivo'] += float(comision_ejecutivo or 0)
+        resumen[ejecutivo]['comision_agencia'] += float(comision_agencia or 0)
+        resumen[ejecutivo]['num_ventas'] += 1
+
+    # Calcular promedio de ventas
     estados_data = []
     totales = {
         'precio_venta_total': 0.0,
         'precio_venta_neto': 0.0,
         'comision_ejecutivo': 0.0,
-        'comision_agencia': 0.0
+        'comision_agencia': 0.0,
+        'num_ventas': 0
     }
-
-    for reserva in reservas:
-        # Calcular precio venta neto (precio total - comisiones)
-        comision_ejecutivo, comision_agencia, ganancia_total, _, precio_venta_neto = calcular_comisiones(reserva, reserva.usuario)
-
+    for ejecutivo, data in resumen.items():
+        prom_ventas = data['precio_venta_total'] / data['num_ventas'] if data['num_ventas'] else 0
         estados_data.append({
-            'reserva_id': reserva.id,
-            'ejecutivo': reserva.nombre_ejecutivo or reserva.usuario.username if reserva.usuario else 'N/A',
-            'fecha_emitida': reserva.fecha_venta,  # Fecha cuando se emitió la reserva
-            'fecha_viaje': reserva.fecha_viaje,
-            'localizadores': reserva.localizadores,
-            'estado_pago': reserva.estado_pago or 'No definido',
-            'venta_cobrada': reserva.venta_cobrada or 'No definido',
-            'venta_emitida': reserva.venta_emitida or 'No definido',
-            'precio_venta_total': reserva.precio_venta_total,
-            'precio_venta_neto': precio_venta_neto,
-            'comision_ejecutivo': comision_ejecutivo,
-            'comision_agencia': comision_agencia
+            'ejecutivo': ejecutivo,
+            'precio_venta_total': data['precio_venta_total'],
+            'precio_venta_neto': data['precio_venta_neto'],
+            'comision_ejecutivo': data['comision_ejecutivo'],
+            'comision_agencia': data['comision_agencia'],
+            'num_ventas': data['num_ventas'],
+            'prom_ventas': prom_ventas
         })
+        totales['precio_venta_total'] += data['precio_venta_total']
+        totales['precio_venta_neto'] += data['precio_venta_neto']
+        totales['comision_ejecutivo'] += data['comision_ejecutivo']
+        totales['comision_agencia'] += data['comision_agencia']
+        totales['num_ventas'] += data['num_ventas']
 
-        # Sumar a los totales (convertir Decimal a float para evitar TypeError)
-        totales['precio_venta_total'] += float(reserva.precio_venta_total)
-        totales['precio_venta_neto'] += float(precio_venta_neto)
-        totales['comision_ejecutivo'] += float(comision_ejecutivo)
-        totales['comision_agencia'] += float(comision_agencia)
-
-    # Obtener lista de empresas para el filtro
     empresas = Empresa.query.all()
 
-    return render_template('estados_de_venta.html', 
+    return render_template('estados_de_venta.html',
                          estados_data=estados_data,
                          totales=totales,
                          selected_mes_str=selected_mes_str,
                          empresas=empresas,
                          selected_empresa_id=selected_empresa_id)
 
+
+# NUEVO ENDPOINT AGRUPADO POR AÑO Y MESES
 @app.route('/balance_mensual')
 @login_required
 @empresa_tiene_gestion_required
 def balance_mensual():
-    """Mostrar balance mensual filtrado por fecha de venta"""
-    # Obtener el mes del parámetro
-    mes_param = request.args.get('mes', '')
+    """Mostrar balance mensual agrupado por meses del año seleccionado"""
+    anio_param = request.args.get('anio', '')
     selected_empresa_id = request.args.get('empresa_id', '')
-    
-    # Obtener lista de meses anteriores
-    fecha_actual = datetime.now()
-    meses_anteriores = []
-    for i in range(12):
-        fecha_mes = fecha_actual - timedelta(days=30*i)
-        mes_str = fecha_mes.strftime('%Y-%m')
-        mes_nombre = obtener_nombre_mes(fecha_mes.month)
-        meses_anteriores.append(f"{mes_str} ({mes_nombre})")
-    
-    # Si no se especifica mes, usar el actual
-    selected_mes_str = mes_param if mes_param else meses_anteriores[0]
-    
-    # Extraer año y mes
-    año_mes = selected_mes_str.split(' (')[0]
-    año, mes = map(int, año_mes.split('-'))
-    
-    # Obtener reservas del mes filtrado por fecha_venta (corregido)
-    query = Reserva.query.join(Usuario).filter(
-        db.extract('year', Reserva.fecha_venta) == año,
-        db.extract('month', Reserva.fecha_venta) == mes
-    )
-    if selected_empresa_id:
-        query = query.filter(
-            Usuario.empresa_id == int(selected_empresa_id),
-            Usuario.rol.in_(['ejecutivo', 'controling', 'analista'])
-        )
-    reservas = query.all()
-    
-    # Preparar datos
+
+    # Obtener años disponibles (de las reservas)
+    anios_disponibles = db.session.query(db.extract('year', Reserva.fecha_venta)).distinct().order_by(db.extract('year', Reserva.fecha_venta).desc()).all()
+    anios_disponibles = [int(a[0]) for a in anios_disponibles if a[0]]
+    anio_actual = datetime.now().year
+    selected_anio = int(anio_param) if anio_param and anio_param.isdigit() else anio_actual
+
+    # Preparar datos por mes
     balance_data = []
-    totales = {
-        'precio_venta_total': 0,
-        'precio_venta_neto': 0,
-        'comision_ejecutivo': 0,
-        'comision_agencia': 0
-    }
-    
-    for reserva in reservas:
-        # Obtener nombre completo del ejecutivo
-        ejecutivo_nombre_completo = f"{reserva.usuario.nombre} {reserva.usuario.apellidos}" if reserva.usuario else 'Sin asignar'
-        # Calcular comisiones usando la función existente
-        comision_ejecutivo, comision_agencia, ganancia_total, _, _ = calcular_comisiones(reserva, reserva.usuario)
+    for mes in range(1, 13):
+        # Query de reservas del mes y año
+        query = Reserva.query.join(Usuario).filter(
+            db.extract('year', Reserva.fecha_venta) == selected_anio,
+            db.extract('month', Reserva.fecha_venta) == mes
+        )
+        if selected_empresa_id:
+            query = query.filter(
+                Usuario.empresa_id == int(selected_empresa_id),
+                Usuario.rol.in_(['ejecutivo', 'controling', 'analista'])
+            )
+        reservas = query.all()
+
+
+        # Ingresos por agentes = suma de comisión agencia
+        ingresos_agentes = 0
+        egresos_comision = 0
+        for r in reservas:
+            comision_ejecutivo, comision_agencia, _, _, _ = calcular_comisiones(r, r.usuario)
+            ingresos_agentes += float(comision_agencia or 0)
+            egresos_comision += float(comision_ejecutivo or 0)
+
+        # Los siguientes campos pueden ser editables y persistidos en BD, pero aquí los dejamos en 0 por defecto
+        ingresos_externos = 0
+        egresos_administracion = 0
+        otros_egresos = 0
+
+        mes_nombre = obtener_nombre_mes(mes)
         balance_data.append({
-            'reserva_id': reserva.id,
-            'ejecutivo': ejecutivo_nombre_completo,
-            'fecha_emitida': reserva.fecha_venta,  # Cambiar nombre para compatibilidad con template
-            'fecha_viaje': reserva.fecha_viaje,
-            'localizadores': reserva.localizadores,
-            'estado_pago': reserva.estado_pago or 'No definido',
-            'venta_cobrada': reserva.venta_cobrada or 'No definido',
-            'venta_emitida': reserva.venta_emitida or 'No definido',
-            'precio_venta_total': float(reserva.precio_venta_total),
-            'precio_venta_neto': float(reserva.precio_venta_neto),
-            'comision_ejecutivo': float(comision_ejecutivo),
-            'comision_agencia': float(comision_agencia)
+            'numero': mes,
+            'nombre': mes_nombre,
+            'ingresos_agentes': ingresos_agentes,
+            'ingresos_externos': ingresos_externos,
+            'egresos_comision': egresos_comision,
+            'egresos_administracion': egresos_administracion,
+            'otros_egresos': otros_egresos
         })
-        # Sumar a los totales
-        totales['precio_venta_total'] += float(reserva.precio_venta_total) or 0
-        totales['precio_venta_neto'] += float(reserva.precio_venta_neto) or 0
-        totales['comision_ejecutivo'] += float(comision_ejecutivo) or 0
-        totales['comision_agencia'] += float(comision_agencia) or 0
-    
+
     empresas = Empresa.query.all()
-    return render_template('balance_mensual.html', 
-                         balance_data=balance_data,
-                         totales=totales,
-                         selected_mes_str=selected_mes_str,
-                         meses_anteriores=meses_anteriores,
-                         empresas=empresas,
-                         selected_empresa_id=selected_empresa_id)
+    return render_template('balance_mensual.html',
+        balance_data=balance_data,
+        anios_disponibles=anios_disponibles,
+        selected_anio=selected_anio,
+        empresas=empresas,
+        selected_empresa_id=selected_empresa_id
+    )
 
 @app.route('/liquidaciones')
 @login_required
@@ -2197,62 +2190,54 @@ def liquidaciones():
     reservas = query.all()
     
     # Procesar datos
-    liquidaciones_data = []
+    # Agrupar reservas por ejecutivo y sumar valores relevantes
+    ejecutivos_dict = {}
     totales = {
         'precio_venta_total': 0,
         'precio_venta_neto': 0,
         'comision_ejecutivo': 0,
         'comision_agencia': 0
     }
-    
-    # Diccionario para resumen por ejecutivo
-    ejecutivos_resumen = {}
-    
     for reserva in reservas:
-        # Obtener nombre completo del ejecutivo
         ejecutivo_nombre_completo = f"{reserva.usuario.nombre} {reserva.usuario.apellidos}"
-
-        # Calcular comisiones usando la función existente
         comision_ejecutivo, comision_agencia, ganancia_total, _, _ = calcular_comisiones(reserva, reserva.usuario)
-
-        liquidaciones_data.append({
-            'reserva_id': reserva.id,
-            'ejecutivo': ejecutivo_nombre_completo,
-            'fecha_emitida': reserva.fecha_venta,  # Cambiar nombre para compatibilidad con template
-            'fecha_viaje': reserva.fecha_viaje,
-            'localizadores': reserva.localizadores,
-            'estado_pago': reserva.estado_pago or 'No definido',
-            'venta_cobrada': reserva.venta_cobrada or 'No definido',
-            'venta_emitida': reserva.venta_emitida or 'No definido',
-            'precio_venta_total': reserva.precio_venta_total,
-            'precio_venta_neto': reserva.precio_venta_neto,
-            'comision_ejecutivo': comision_ejecutivo,
-            'comision_agencia': comision_agencia
-        })
-        
-        # Sumar a los totales
-        totales['precio_venta_total'] += reserva.precio_venta_total or 0
-        totales['precio_venta_neto'] += reserva.precio_venta_neto or 0
-        totales['comision_ejecutivo'] += comision_ejecutivo or 0
-        totales['comision_agencia'] += comision_agencia or 0
-        
-        # Acumular para resumen por ejecutivo
-        if ejecutivo_nombre_completo not in ejecutivos_resumen:
-            ejecutivos_resumen[ejecutivo_nombre_completo] = {
+        if ejecutivo_nombre_completo not in ejecutivos_dict:
+            ejecutivos_dict[ejecutivo_nombre_completo] = {
                 'ejecutivo': ejecutivo_nombre_completo,
-                'cantidad': 0,
-                'ventas_total': 0,
-                'comisiones_total': 0
+                'precio_venta_total': 0,
+                'precio_venta_neto': 0,
+                'comision_ejecutivo': 0,
+                'comision_agencia': 0,
+                'porcentaje_comision': getattr(reserva.usuario, 'comision', 0),
+                'sueldo': getattr(reserva.usuario, 'sueldo', 0),
+                'estado_pago': reserva.estado_pago or 'No definido',
+                'bonos': 0,
+                'descuentos': 0,
+                'total_pagar': 0
             }
-        
-        ejecutivos_resumen[ejecutivo_nombre_completo]['cantidad'] += 1
-        ejecutivos_resumen[ejecutivo_nombre_completo]['ventas_total'] += reserva.precio_venta_total or 0
-        ejecutivos_resumen[ejecutivo_nombre_completo]['comisiones_total'] += comision_ejecutivo or 0
-    
-    # Convertir resumen a lista ordenada
-    ejecutivos_resumen_lista = sorted(ejecutivos_resumen.values(), 
-                                    key=lambda x: x['ventas_total'], 
-                                    reverse=True)
+        ejecutivos_dict[ejecutivo_nombre_completo]['precio_venta_total'] += reserva.precio_venta_total or 0
+        ejecutivos_dict[ejecutivo_nombre_completo]['precio_venta_neto'] += reserva.precio_venta_neto or 0
+        ejecutivos_dict[ejecutivo_nombre_completo]['comision_ejecutivo'] += comision_ejecutivo or 0
+        ejecutivos_dict[ejecutivo_nombre_completo]['comision_agencia'] += comision_agencia or 0
+        # Si quieres sumar bonos y descuentos, deberías tenerlos en la reserva o en otro lado
+        # ejecutivos_dict[ejecutivo_nombre_completo]['bonos'] += reserva.bonos or 0
+        # ejecutivos_dict[ejecutivo_nombre_completo]['descuentos'] += reserva.descuentos or 0
+        # El estado de pago podría ser 'Pagado' si alguna reserva está pagada
+        if reserva.estado_pago == 'Pagado':
+            ejecutivos_dict[ejecutivo_nombre_completo]['estado_pago'] = 'Pagado'
+    # Calcular total a pagar por ejecutivo
+    for data in ejecutivos_dict.values():
+        data['total_pagar'] = (
+            (data['comision_ejecutivo'] or 0)
+            + (data['bonos'] or 0)
+            + (data['sueldo'] or 0)
+            - (data['descuentos'] or 0)
+        )
+        totales['precio_venta_total'] += data['precio_venta_total']
+        totales['precio_venta_neto'] += data['precio_venta_neto']
+        totales['comision_ejecutivo'] += data['comision_ejecutivo']
+        totales['comision_agencia'] += data['comision_agencia']
+    liquidaciones_data = list(ejecutivos_dict.values())
     
     empresas = Empresa.query.all()
     return render_template('liquidaciones.html', 
@@ -2262,7 +2247,7 @@ def liquidaciones():
                          selected_ejecutivo=selected_ejecutivo,
                          meses_anteriores=meses_anteriores,
                          ejecutivos_disponibles=ejecutivos_disponibles,
-                         ejecutivos_resumen=ejecutivos_resumen_lista,
+                         # ejecutivos_resumen eliminado porque ya no se usa
                          empresas=empresas,
                          selected_empresa_id=selected_empresa_id)
 

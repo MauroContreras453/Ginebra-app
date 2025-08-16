@@ -17,9 +17,14 @@
         <div class="card-body">
             <form method="GET" class="row g-3 align-items-end">
                 <div class="col-md-3">
-                    <label for="mes" class="form-label">Filtrar por mes de venta:</label>
-                    <input type="month" class="form-select" id="mes" name="mes" value="{{ selected_mes_str or '' }}">
+                    <label for="anio" class="form-label">Filtrar por año:</label>
+                    <select class="form-select" id="anio" name="anio">
+                        {% for anio in anios_disponibles %}
+                        <option value="{{ anio }}" {% if anio|string == selected_anio|string %}selected{% endif %}>{{ anio }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
+                {% if current_user.rol in ['master', 'admin'] %}
                 <div class="col-md-3">
                     <label for="empresa_id" class="form-label">Filtrar por empresa:</label>
                     <select class="form-select" id="empresa_id" name="empresa_id">
@@ -31,6 +36,7 @@
                         {% endfor %}
                     </select>
                 </div>
+                {% endif %}
                 <div class="col-md-2">
                     <button type="submit" class="btn btn-primary">Filtrar</button>
                 </div>
@@ -43,109 +49,61 @@
         <div class="card-body">
             {% if balance_data %}
             <div class="table-responsive">
-                <table class="table table-bordered table-hover text-white align-middle">
+                <table class="table table-bordered table-hover text-white align-middle" id="tabla-balance-mensual">
                     <thead>
                         <tr>
-                            <th>ID Reserva</th>
-                            <th>Ejecutivo</th>
-                            <th>Fecha Emitida</th>
-                            <th>Fecha Viaje</th>
-                            <th>Localizadores</th>
-                            <th>Estado de Pago</th>
-                            <th>Venta Cobrada</th>
-                            <th>Venta Emitida</th>
-                            <th>Precio Venta Total</th>
-                            <th>Precio Venta Neto</th>
-                            <th>Comisión Ejecutivo</th>
-                            <th>Comisión Agencia</th>
+                            <th>Mes</th>
+                            <th>Ingresos por agentes</th>
+                            <th>Ingresos externos</th>
+                            <th>Egresos por comisión</th>
+                            <th>Egresos por administración</th>
+                            <th>Otros egresos</th>
+                            <th>Ganancia/Pérdida</th>
+                            <th>% Margen</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for balance in balance_data %}
-                        <tr>
-                            <td>{{ balance.reserva_id }}</td>
-                            <td>{{ balance.ejecutivo }}</td>
-                            <td>{{ balance.fecha_emitida.strftime('%Y-%m-%d') if balance.fecha_emitida else 'N/A' }}</td>
-                            <td>{{ balance.fecha_viaje.strftime('%Y-%m-%d') if balance.fecha_viaje else 'N/A' }}</td>
-                            <td>{{ balance.localizadores or 'N/A' }}</td>
+                        {% for mes in balance_data %}
+                        <tr data-mes="{{ mes.numero }}">
+                            <td>{{ mes.nombre }}</td>
+                            <td class="ingresos-agentes">${{ "{:,.0f}".format(mes.ingresos_agentes or 0).replace(",", ".") }}</td>
                             <td>
-                                <span class="badge {% if balance.estado_pago == 'Pagado' %}bg-success{% elif balance.estado_pago == 'Pendiente' %}bg-warning{% else %}bg-secondary{% endif %}">
-                                    {{ balance.estado_pago }}
-                                </span>
+                                <input type="text" class="form-control form-control-sm input-miles ingresos-externos" name="ingresos_externos_{{ mes.numero }}" value="{{ mes.ingresos_externos or 0 }}">
+                            </td>
+                            <td class="egresos-comision">${{ "{:,.0f}".format(mes.egresos_comision or 0).replace(",", ".") }}</td>
+                            <td>
+                                <input type="text" class="form-control form-control-sm input-miles egresos-administracion" name="egresos_administracion_{{ mes.numero }}" value="{{ mes.egresos_administracion or 0 }}">
                             </td>
                             <td>
-                                <span class="badge {% if balance.venta_cobrada == 'Cobrada' %}bg-success{% elif balance.venta_cobrada == 'Pendiente' %}bg-warning{% else %}bg-secondary{% endif %}">
-                                    {{ balance.venta_cobrada }}
-                                </span>
+                                <input type="text" class="form-control form-control-sm input-miles otros-egresos" name="otros_egresos_{{ mes.numero }}" value="{{ mes.otros_egresos or 0 }}">
                             </td>
-                            <td>
-                                <span class="badge {% if balance.venta_emitida == 'Emitida' %}bg-success{% elif balance.venta_emitida == 'Pendiente' %}bg-warning{% else %}bg-secondary{% endif %}">
-                                    {{ balance.venta_emitida }}
-                                </span>
+                            <td class="ganancia-perdida">
+                                ${{ "{:,.0f}".format((mes.ingresos_agentes or 0) + (mes.ingresos_externos or 0) - (mes.egresos_comision or 0) - (mes.egresos_administracion or 0) - (mes.otros_egresos or 0)).replace(",", ".") }}
                             </td>
-                            <td>${{ "{:,.0f}".format(balance.precio_venta_total).replace(",", ".") }}</td>
-                            <td>${{ "{:,.0f}".format(balance.precio_venta_neto).replace(",", ".") }}</td>
-                            <td>${{ "{:,.0f}".format(balance.comision_ejecutivo).replace(",", ".") }}</td>
-                            <td>${{ "{:,.0f}".format(balance.comision_agencia).replace(",", ".") }}</td>
+                            <td class="margen-porcentaje">
+                                {% set ingresos = (mes.ingresos_agentes or 0) + (mes.ingresos_externos or 0) %}
+                                {% set egresos = (mes.egresos_comision or 0) + (mes.egresos_administracion or 0) + (mes.otros_egresos or 0) %}
+                                {% if egresos > 0 and ingresos > 0 %}
+                                    {{ (100 - ((egresos / ingresos) * 100))|round(1) }}%
+                                {% else %}
+                                    0.0%
+                                {% endif %}
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
-                    <tfoot class="table-dark">
-                        <tr>
-                            <th colspan="8">TOTALES</th>
-                            <th>${{ "{:,.0f}".format(totales.precio_venta_total).replace(",", ".") }}</th>
-                            <th>${{ "{:,.0f}".format(totales.precio_venta_neto).replace(",", ".") }}</th>
-                            <th>${{ "{:,.0f}".format(totales.comision_ejecutivo).replace(",", ".") }}</th>
-                            <th>${{ "{:,.0f}".format(totales.comision_agencia).replace(",", ".") }}</th>
-                        </tr>
-                    </tfoot>
                 </table>
+                <script src="{{ url_for('static', filename='scripts/balance_mensual.js') }}"></script>
             </div>
             {% else %}
             <div class="alert alert-info">
                 <h5>No hay datos disponibles</h5>
-                <p>No se encontraron reservas para el mes seleccionado: <strong>{{ selected_mes_str }}</strong></p>
+                <p>No se encontraron datos para el año seleccionado: <strong>{{ selected_anio }}</strong></p>
             </div>
             {% endif %}
         </div>
     </div>
 
-    <!-- Resumen estadístico -->
-    {% if balance_data %}
-    <div class="row mt-4">
-        <div class="col-md-3">
-            <div class="card bg-primary text-white">
-                <div class="card-body">
-                    <h5 class="card-title">Total Reservas</h5>
-                    <h2 class="card-text">{{ balance_data|length }}</h2>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-success text-white">
-                <div class="card-body">
-                    <h5 class="card-title">Ventas Totales</h5>
-                    <h3 class="card-text">${{ "{:,.0f}".format(totales.precio_venta_total).replace(",", ".") }}</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-warning text-white">
-                <div class="card-body">
-                    <h5 class="card-title">Comisiones Ejecutivos</h5>
-                    <h3 class="card-text">${{ "{:,.0f}".format(totales.comision_ejecutivo).replace(",", ".") }}</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-info text-white">
-                <div class="card-body">
-                    <h5 class="card-title">Comisiones Agencia</h5>
-                    <h3 class="card-text">${{ "{:,.0f}".format(totales.comision_agencia).replace(",", ".") }}</h3>
-                </div>
-            </div>
-        </div>
-    </div>
-    {% endif %}
+    <!-- Resumen estadístico eliminado: la variable 'totales' ya no existe en el backend. -->
 </div>
 {% endblock %}

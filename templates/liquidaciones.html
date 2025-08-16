@@ -9,17 +9,14 @@
 {% block content %}
 <div class="container">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="mb-0">Estados de Venta</h3>
+        <h3 class="mb-0">Liquidaciones</h3>
     </div>
 
     <!-- Filtros -->
     <div class="card mb-4">
         <div class="card-body">
             <form method="GET" class="row g-3 align-items-end">
-                <div class="col-md-3">
-                    <label for="mes" class="form-label">Filtrar por mes de venta:</label>
-                    <input type="month" class="form-select" id="mes" name="mes" value="{{ selected_mes_str or '' }}">
-                </div>
+                {% if current_user.rol in ['master', 'admin'] %}
                 <div class="col-md-3">
                     <label for="empresa_id" class="form-label">Filtrar por empresa:</label>
                     <select class="form-select" id="empresa_id" name="empresa_id">
@@ -30,6 +27,11 @@
                         </option>
                         {% endfor %}
                     </select>
+                </div>
+                {% endif %}
+                <div class="col-md-3">
+                    <label for="mes" class="form-label">Filtrar por mes de venta:</label>
+                    <input type="month" class="form-select" id="mes" name="mes" value="{{ selected_mes_str or '' }}">
                 </div>
                 <div class="col-md-2">
                     <button type="submit" class="btn btn-primary">Filtrar</button>
@@ -46,59 +48,47 @@
                 <table class="table table-bordered table-hover text-white align-middle">
                     <thead>
                         <tr>
-                            <th>ID Reserva</th>
                             <th>Ejecutivo</th>
-                            <th>Fecha Emitida</th>
-                            <th>Fecha Viaje</th>
-                            <th>Localizadores</th>
-                            <th>Estado de Pago</th>
-                            <th>Venta Cobrada</th>
-                            <th>Venta Emitida</th>
                             <th>Precio Venta Total</th>
                             <th>Precio Venta Neto</th>
+                            <th>% Comisión</th>
                             <th>Comisión Ejecutivo</th>
-                            <th>Comisión Agencia</th>
+                            <th>Bonos</th>
+                            <th>Sueldos</th>
+                            <th>Descuentos</th>
+                            <th>Total a Pagar</th>
+                            <th>Estado de Pago</th>
+                            <th>Acción</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for estado in estados_data %}
                         <tr>
-                            <td>{{ estado.reserva_id }}</td>
                             <td>{{ estado.ejecutivo }}</td>
-                            <td>{{ estado.fecha_emitida.strftime('%Y-%m-%d') if estado.fecha_emitida else 'N/A' }}</td>
-                            <td>{{ estado.fecha_viaje.strftime('%Y-%m-%d') if estado.fecha_viaje else 'N/A' }}</td>
-                            <td>{{ estado.localizadores or 'N/A' }}</td>
+                            <td>${{ "{:,.0f}".format(estado.precio_venta_total or 0).replace(",", ".") }}</td>
+                            <td>${{ "{:,.0f}".format(estado.precio_venta_neto or 0).replace(",", ".") }}</td>
+                            <td>{{ (estado.porcentaje_comision or 0)|round|int }}%</td>
+                            <td>${{ "{:,.0f}".format(estado.comision_ejecutivo or 0).replace(",", ".") }}</td>
                             <td>
-                                <span class="badge {% if estado.estado_pago == 'Pagado' %}bg-success{% elif estado.estado_pago == 'Pendiente' %}bg-warning{% else %}bg-secondary{% endif %}">
-                                    {{ estado.estado_pago }}
-                                </span>
+                                <input type="number" class="form-control form-control-sm" name="bonos_{{ estado.id }}" value="{{ estado.bonos or 0 }}">
+                            </td>
+                            <td>${{ "{:,.0f}".format(estado.sueldo or 0).replace(",", ".") }}</td>
+                            <td>
+                                <input type="number" class="form-control form-control-sm" name="descuentos_{{ estado.id }}" value="{{ estado.descuentos or 0 }}">
+                            </td>
+                            <td>${{ "{:,.0f}".format(estado.total_pagar or 0).replace(",", ".") }}</td>
+                            <td style="min-width: 120px;">
+                                <select class="form-select form-select-sm" name="estado_pago_{{ estado.id }}" style="width: 90px; font-size: 0.9em;">
+                                    <option value="Pagado" {% if estado.estado_pago == 'Pagado' %}selected{% endif %}>Pagado</option>
+                                    <option value="Pendiente" {% if estado.estado_pago == 'Pendiente' %}selected{% endif %}>Pendiente</option>
+                                </select>
                             </td>
                             <td>
-                                <span class="badge {% if estado.venta_cobrada == 'Cobrada' %}bg-success{% elif estado.venta_cobrada == 'Pendiente' %}bg-warning{% else %}bg-secondary{% endif %}">
-                                    {{ estado.venta_cobrada }}
-                                </span>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" disabled>PDF</button>
                             </td>
-                            <td>
-                                <span class="badge {% if estado.venta_emitida == 'Emitida' %}bg-success{% elif estado.venta_emitida == 'Pendiente' %}bg-warning{% else %}bg-secondary{% endif %}">
-                                    {{ estado.venta_emitida }}
-                                </span>
-                            </td>
-                            <td>${{ "{:,.0f}".format(estado.precio_venta_total).replace(",", ".") }}</td>
-                            <td>${{ "{:,.0f}".format(estado.precio_venta_neto).replace(",", ".") }}</td>
-                            <td>${{ "{:,.0f}".format(estado.comision_ejecutivo).replace(",", ".") }}</td>
-                            <td>${{ "{:,.0f}".format(estado.comision_agencia).replace(",", ".") }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
-                    <tfoot class="table-dark">
-                        <tr>
-                            <th colspan="8">TOTALES</th>
-                            <th>${{ "{:,.0f}".format(totales.precio_venta_total).replace(",", ".") }}</th>
-                            <th>${{ "{:,.0f}".format(totales.precio_venta_neto).replace(",", ".") }}</th>
-                            <th>${{ "{:,.0f}".format(totales.comision_ejecutivo).replace(",", ".") }}</th>
-                            <th>${{ "{:,.0f}".format(totales.comision_agencia).replace(",", ".") }}</th>
-                        </tr>
-                    </tfoot>
                 </table>
             </div>
             {% else %}
@@ -116,8 +106,10 @@
         <div class="col-md-3">
             <div class="card bg-primary text-white">
                 <div class="card-body">
-                    <h5 class="card-title">Total Reservas</h5>
-                    <h2 class="card-text">{{ estados_data|length }}</h2>
+                    <h5 class="card-title">Total Sueldos</h5>
+                    <h2 class="card-text">
+                        ${{ "{:,.0f}".format(estados_data|map(attribute='sueldo')|sum or 0).replace(",", ".") }}
+                    </h2>
                 </div>
             </div>
         </div>

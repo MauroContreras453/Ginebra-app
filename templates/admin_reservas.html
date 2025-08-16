@@ -46,14 +46,14 @@
         {% endif %}
 
         <div class="col-md-2">
-          <label for="fecha_venta" class="form-label">Fecha venta:</label>
-          <input type="date" class="form-select" id="fecha_venta" name="fecha_venta" 
+          <label for="fecha_venta" class="form-label">Mes venta:</label>
+          <input type="month" class="form-select" id="fecha_venta" name="fecha_venta" 
                  value="{{ selected_fecha_venta or '' }}">
         </div>
 
         <div class="col-md-2">
-          <label for="fecha_viaje" class="form-label">Fecha viaje:</label>
-          <input type="date" class="form-select" id="fecha_viaje" name="fecha_viaje" 
+          <label for="fecha_viaje" class="form-label">Mes viaje:</label>
+          <input type="month" class="form-select" id="fecha_viaje" name="fecha_viaje" 
                  value="{{ selected_fecha_viaje or '' }}">
         </div>
 
@@ -75,9 +75,18 @@
   <!-- Tabla de reservas -->
   <div class="card">
     <div class="card-body">
+      <style>
+        .tabla-reservas-peq {
+          font-size: 0.85rem;
+        }
+        .tabla-reservas-peq td.mail-col, .tabla-reservas-peq th.mail-col {
+          padding-left: 0.375rem !important;
+          padding-right: 0.375rem !important;
+        }
+      </style>
       {% if reservas.items %}
       <div class="table-responsive">
-  <table class="table table-bordered table-hover text-white align-middle w-100">
+        <table class="table table-bordered table-hover text-white align-middle w-100 tabla-reservas-peq">
           <thead>
             <tr>
               <th>Usuario</th>
@@ -86,7 +95,7 @@
               <th>Producto</th>
               <th>Nombre pasajero</th>
               <th>Teléfono</th>
-              <th>Mail</th>
+              <th class="mail-col">Mail</th>
               <th>Localizadores</th>
               <th>Destino</th>
               <th>Estado</th>
@@ -102,7 +111,7 @@
               <td>{{ reserva.producto or '-' }}</td>
               <td>{{ reserva.nombre_pasajero or '-' }}</td>
               <td>{{ reserva.telefono_pasajero or '-' }}</td>
-              <td>{{ reserva.mail_pasajero or '-' }}</td>
+              <td class="mail-col">{{ reserva.mail_pasajero or '-' }}</td>
               <td>{{ reserva.localizadores or '-' }}</td>
               <td>{{ reserva.destino or '-' }}</td>
               <td>

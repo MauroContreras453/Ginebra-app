@@ -17,9 +17,10 @@
         <div class="card-body">
             <form method="GET" class="row g-3 align-items-end">
                 <div class="col-md-3">
-                    <label for="mes" class="form-label">Filtrar por mes de viaje:</label>
+                    <label for="mes" class="form-label">Filtrar por mes de venta:</label>
                     <input type="month" class="form-select" id="mes" name="mes" value="{{ selected_mes_str or '' }}">
                 </div>
+                {% if current_user.rol in ['master', 'admin'] %}
                 <div class="col-md-3">
                     <label for="empresa_id" class="form-label">Filtrar por empresa:</label>
                     <select class="form-select" id="empresa_id" name="empresa_id">
@@ -31,6 +32,7 @@
                         {% endfor %}
                     </select>
                 </div>
+                {% endif %}
                 <div class="col-md-2">
                     <button type="submit" class="btn btn-primary">Filtrar</button>
                 </div>
@@ -38,7 +40,7 @@
         </div>
     </div>
 
-    <!-- Tabla de estados de venta -->
+    <!-- Tabla de estados de venta agrupada por ejecutivo -->
     <div class="card">
         <div class="card-body">
             {% if estados_data %}
@@ -46,62 +48,40 @@
                 <table class="table table-bordered table-hover text-white align-middle">
                     <thead>
                         <tr>
-                            <th>ID Reserva</th>
                             <th>Ejecutivo</th>
-                            <th>Fecha Emitida</th>
-                            <th>Fecha Viaje</th>
-                            <th>Localizadores</th>
-                            <th>Estado de Pago</th>
-                            <th>Venta Cobrada</th>
-                            <th>Venta Emitida</th>
                             <th>Precio Venta Total</th>
                             <th>Precio Venta Neto</th>
                             <th>Comisión Ejecutivo</th>
                             <th>Comisión Agencia</th>
+                            <th>N° Ventas</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for estado in estados_data %}
                         <tr>
-                            <td>{{ estado.reserva_id }}</td>
                             <td>{{ estado.ejecutivo }}</td>
-                            <td>{{ estado.fecha_emitida.strftime('%Y-%m-%d') if estado.fecha_emitida else 'N/A' }}</td>
-                            <td>{{ estado.fecha_viaje.strftime('%Y-%m-%d') if estado.fecha_viaje else 'N/A' }}</td>
-                            <td>{{ estado.localizadores or 'N/A' }}</td>
-                            <td>
-                                <span class="badge {% if estado.estado_pago == 'Pagado' %}bg-success{% elif estado.estado_pago == 'Pendiente' %}bg-warning{% else %}bg-secondary{% endif %}">
-                                    {{ estado.estado_pago }}
-                                </span>
-                            </td>
-                            <td>
-                                <span class="badge {% if estado.venta_cobrada == 'Cobrada' %}bg-success{% elif estado.venta_cobrada == 'Pendiente' %}bg-warning{% else %}bg-secondary{% endif %}">
-                                    {{ estado.venta_cobrada }}
-                                </span>
-                            </td>
-                            <td>
-                                <span class="badge {% if estado.venta_emitida == 'Emitida' %}bg-success{% elif estado.venta_emitida == 'Pendiente' %}bg-warning{% else %}bg-secondary{% endif %}">
-                                    {{ estado.venta_emitida }}
-                                </span>
-                            </td>
                             <td>${{ "{:,.0f}".format(estado.precio_venta_total).replace(",", ".") }}</td>
                             <td>${{ "{:,.0f}".format(estado.precio_venta_neto).replace(",", ".") }}</td>
                             <td>${{ "{:,.0f}".format(estado.comision_ejecutivo).replace(",", ".") }}</td>
                             <td>${{ "{:,.0f}".format(estado.comision_agencia).replace(",", ".") }}</td>
+                            <td>{{ estado.num_ventas }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                     <tfoot class="table-dark">
                         <tr>
-                            <th colspan="8">TOTALES</th>
+                            <th>TOTALES</th>
                             <th>${{ "{:,.0f}".format(totales.precio_venta_total).replace(",", ".") }}</th>
                             <th>${{ "{:,.0f}".format(totales.precio_venta_neto).replace(",", ".") }}</th>
                             <th>${{ "{:,.0f}".format(totales.comision_ejecutivo).replace(",", ".") }}</th>
                             <th>${{ "{:,.0f}".format(totales.comision_agencia).replace(",", ".") }}</th>
+                            <th>{{ totales.num_ventas }}</th>
                         </tr>
                     </tfoot>
                 </table>
             </div>
-            {% else %}
+            {% endif %}
+            {% if not estados_data %}
             <div class="alert alert-info">
                 <h5>No hay datos disponibles</h5>
                 <p>No se encontraron reservas para el mes seleccionado: <strong>{{ selected_mes_str }}</strong></p>
