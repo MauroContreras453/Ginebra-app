@@ -806,44 +806,61 @@ def obtener_datos_admin_reservas(search_query, page, per_page):
         'search_query': search_query
     }
 
-def obtener_datos_control_gestion_clientes(ejecutivo_id, rango_fechas_str):
-    # Obtener ejecutivos (admin y usuario)
-    ejecutivos = Usuario.query.filter(Usuario.rol.in_(['usuario', 'admin'])).order_by(Usuario.nombre).all()
-    # Generar meses anteriores
+def obtener_datos_control_gestion_clientes(selected_mes_str, selected_empresa_id, selected_ejecutivo_id, empresas, ejecutivos):
     meses_anteriores = obtener_meses_anteriores()
-
+    # Si no se especifica mes, usar el actual en formato YYYY-MM
+    if not selected_mes_str:
+        today = datetime.now()
+        selected_mes_str = today.strftime('%Y-%m')
+    # Parsear año y mes
+    try:
+        year, month = map(int, selected_mes_str.split('-'))
+    except Exception:
+        today = datetime.now()
+        year, month = today.year, today.month
+        selected_mes_str = today.strftime('%Y-%m')
     reservas_query = Reserva.query.join(Usuario)
-    if ejecutivo_id:
-        reservas_query = reservas_query.filter(Reserva.usuario_id == ejecutivo_id)
-    start_date, end_date = _get_date_range(rango_fechas_str)
     reservas_query = reservas_query.filter(
-        Reserva.fecha_venta >= start_date.strftime('%Y-%m-%d'),
-        Reserva.fecha_venta <= end_date.strftime('%Y-%m-%d')
+        db.extract('year', Reserva.fecha_venta) == year,
+        db.extract('month', Reserva.fecha_venta) == month,
+        Usuario.rol.in_(['ejecutivo', 'analista', 'controling'])
     )
+    if selected_empresa_id and current_user.rol in ['master', 'admin']:
+        reservas_query = reservas_query.filter(Usuario.empresa_id == int(selected_empresa_id))
+    if selected_ejecutivo_id:
+        reservas_query = reservas_query.filter(Reserva.usuario_id == selected_ejecutivo_id)
     reservas = reservas_query.order_by(Reserva.fecha_venta.desc()).all()
-
     return {
         "reservas": reservas,
-        "ejecutivo_id": ejecutivo_id,
-        "rango_fechas_str": rango_fechas_str,
+        "empresas": empresas,
         "ejecutivos": ejecutivos,
         "meses_anteriores": meses_anteriores,
-        "selected_ejecutivo_id": ejecutivo_id,
-        "selected_rango_fechas": rango_fechas_str
+        "selected_mes_str": selected_mes_str,
+        "selected_empresa_id": selected_empresa_id,
+        "selected_ejecutivo_id": selected_ejecutivo_id
     }
 
-def obtener_datos_panel_comisiones(ejecutivo_id, rango_fechas_str):
-    ejecutivos = Usuario.query.filter(Usuario.rol.in_(['usuario', 'admin'])).order_by(Usuario.nombre).all()
+def obtener_datos_panel_comisiones(selected_mes_str, selected_empresa_id, selected_ejecutivo_id, empresas, ejecutivos):
     meses_anteriores = obtener_meses_anteriores()
-
+    if not selected_mes_str:
+        today = datetime.now()
+        selected_mes_str = today.strftime('%Y-%m')
+    try:
+        year, month = map(int, selected_mes_str.split('-'))
+    except Exception:
+        today = datetime.now()
+        year, month = today.year, today.month
+        selected_mes_str = today.strftime('%Y-%m')
     reservas_query = Reserva.query.join(Usuario)
-    if ejecutivo_id:
-        reservas_query = reservas_query.filter(Reserva.usuario_id == ejecutivo_id)
-    start_date, end_date = _get_date_range(rango_fechas_str)
     reservas_query = reservas_query.filter(
-        Reserva.fecha_venta >= start_date.strftime('%Y-%m-%d'),
-        Reserva.fecha_venta <= end_date.strftime('%Y-%m-%d')
+        db.extract('year', Reserva.fecha_venta) == year,
+        db.extract('month', Reserva.fecha_venta) == month,
+        Usuario.rol.in_(['ejecutivo', 'analista', 'controling'])
     )
+    if selected_empresa_id:
+        reservas_query = reservas_query.filter(Usuario.empresa_id == int(selected_empresa_id))
+    if selected_ejecutivo_id:
+        reservas_query = reservas_query.filter(Reserva.usuario_id == selected_ejecutivo_id)
     reservas = reservas_query.order_by(Reserva.fecha_venta.desc()).all()
 
     datos_comisiones = []
@@ -888,29 +905,29 @@ def obtener_datos_panel_comisiones(ejecutivo_id, rango_fechas_str):
         })
 
         # Sumar a los totales
-    totales['precio_venta_total'] += float(reserva.precio_venta_total or 0)
-    totales['hotel_neto'] += float(reserva.hotel_neto or 0)
-    totales['vuelo_neto'] += float(reserva.vuelo_neto or 0)
-    totales['traslado_neto'] += float(reserva.traslado_neto or 0)
-    totales['seguro_neto'] += float(reserva.seguro_neto or 0)
-    totales['circuito_neto'] += float(reserva.circuito_neto or 0)
-    totales['crucero_neto'] += float(reserva.crucero_neto or 0)
-    totales['excursion_neto'] += float(reserva.excursion_neto or 0)
-    totales['paquete_neto'] += float(reserva.paquete_neto or 0)
-    totales['bonos'] += float(bonos or 0)
-    totales['ganancia_total'] += float(ganancia_total or 0)
-    totales['comision_ejecutivo'] += float(comision_ejecutivo or 0)
-    totales['comision_agencia'] += float(comision_agencia or 0)
+        totales['precio_venta_total'] += float(reserva.precio_venta_total or 0)
+        totales['hotel_neto'] += float(reserva.hotel_neto or 0)
+        totales['vuelo_neto'] += float(reserva.vuelo_neto or 0)
+        totales['traslado_neto'] += float(reserva.traslado_neto or 0)
+        totales['seguro_neto'] += float(reserva.seguro_neto or 0)
+        totales['circuito_neto'] += float(reserva.circuito_neto or 0)
+        totales['crucero_neto'] += float(reserva.crucero_neto or 0)
+        totales['excursion_neto'] += float(reserva.excursion_neto or 0)
+        totales['paquete_neto'] += float(reserva.paquete_neto or 0)
+        totales['bonos'] += float(bonos or 0)
+        totales['ganancia_total'] += float(ganancia_total or 0)
+        totales['comision_ejecutivo'] += float(comision_ejecutivo or 0)
+        totales['comision_agencia'] += float(comision_agencia or 0)
 
     return {
         'datos_comisiones': datos_comisiones,
         'totales': totales,
-        'ejecutivo_id': ejecutivo_id,
-        'rango_fechas_str': rango_fechas_str,
+        'empresas': empresas,
         'ejecutivos': ejecutivos,
         'meses_anteriores': meses_anteriores,
-        'selected_ejecutivo_id': ejecutivo_id,
-        'selected_rango_fechas': rango_fechas_str
+        'selected_mes_str': selected_mes_str,
+        'selected_empresa_id': selected_empresa_id,
+        'selected_ejecutivo_id': selected_ejecutivo_id
     }
 
 def obtener_datos_ranking_ejecutivos(selected_mes_str, selected_empresa_id, empresas):
@@ -1753,18 +1770,30 @@ def admin_reservas():
 @login_required
 @rol_required('admin', 'master')
 def control_gestion_clientes():
-    ejecutivo_id = request.args.get('ejecutivo_id', type=int)
-    rango_fechas_str = request.args.get('rango_fechas', 'ultimos_30_dias')
-    contexto = obtener_datos_control_gestion_clientes(ejecutivo_id, rango_fechas_str)
+    selected_mes_str = request.args.get('mes', '')
+    selected_empresa_id = request.args.get('empresa_id', '')
+    selected_ejecutivo_id = request.args.get('ejecutivo_id', type=int)
+    empresas = Empresa.query.all()
+    if selected_empresa_id:
+        ejecutivos = Usuario.query.filter(Usuario.rol.in_(['ejecutivo', 'analista', 'controling']), Usuario.empresa_id == int(selected_empresa_id)).order_by(Usuario.nombre).all()
+    else:
+        ejecutivos = Usuario.query.filter(Usuario.rol.in_(['ejecutivo', 'analista', 'controling'])).order_by(Usuario.nombre).all()
+    contexto = obtener_datos_control_gestion_clientes(selected_mes_str, selected_empresa_id, selected_ejecutivo_id, empresas, ejecutivos)
     return render_template('control_gestion_clientes.html', **contexto)
 
 @app.route('/panel_comisiones')
 @login_required
 @rol_required('admin', 'master')
 def panel_comisiones():
-    ejecutivo_id = request.args.get('ejecutivo_id', type=int)
-    rango_fechas_str = request.args.get('rango_fechas', 'ultimos_30_dias')
-    contexto = obtener_datos_panel_comisiones(ejecutivo_id, rango_fechas_str)
+    selected_mes_str = request.args.get('mes', '')
+    selected_empresa_id = request.args.get('empresa_id', '')
+    selected_ejecutivo_id = request.args.get('ejecutivo_id', type=int)
+    empresas = Empresa.query.all()
+    if selected_empresa_id:
+        ejecutivos = Usuario.query.filter(Usuario.rol.in_(['ejecutivo', 'analista', 'controling']), Usuario.empresa_id == int(selected_empresa_id)).order_by(Usuario.nombre).all()
+    else:
+        ejecutivos = Usuario.query.filter(Usuario.rol.in_(['ejecutivo', 'analista', 'controling'])).order_by(Usuario.nombre).all()
+    contexto = obtener_datos_panel_comisiones(selected_mes_str, selected_empresa_id, selected_ejecutivo_id, empresas, ejecutivos)
     return render_template('panel_comisiones.html', **contexto)
 
 @app.route('/ranking_ejecutivos')
@@ -2057,10 +2086,60 @@ def obtener_datos_reporte_ventas_general_mensual(selected_mes_str, selected_empr
 @login_required
 @rol_required('admin', 'master')
 def marketing():
-    ejecutivo_id = request.args.get('ejecutivo_id', type=int)
-    rango_fechas_str = request.args.get('rango_fechas', 'ultimos_30_dias')
-    contexto = obtener_datos_marketing(ejecutivo_id, rango_fechas_str)
+    selected_mes_str = request.args.get('mes', '')
+    selected_empresa_id = request.args.get('empresa_id', '')
+    selected_ejecutivo_id = request.args.get('ejecutivo_id', type=int)
+    empresas = Empresa.query.all()
+    if selected_empresa_id:
+        ejecutivos = Usuario.query.filter(Usuario.rol.in_(['ejecutivo', 'analista', 'controling']), Usuario.empresa_id == int(selected_empresa_id)).order_by(Usuario.nombre).all()
+    else:
+        ejecutivos = Usuario.query.filter(Usuario.rol.in_(['ejecutivo', 'analista', 'controling'])).order_by(Usuario.nombre).all()
+    contexto = obtener_datos_marketing(selected_mes_str, selected_empresa_id, selected_ejecutivo_id, empresas, ejecutivos)
     return render_template('marketing.html', **contexto)
+
+def obtener_datos_marketing(selected_mes_str, selected_empresa_id, selected_ejecutivo_id, empresas, ejecutivos):
+    meses_anteriores = obtener_meses_anteriores()
+    # Si no se especifica mes, usar el actual en formato YYYY-MM
+    if not selected_mes_str:
+        today = datetime.now()
+        selected_mes_str = today.strftime('%Y-%m')
+    # Parsear año y mes
+    try:
+        year, month = map(int, selected_mes_str.split('-'))
+    except Exception:
+        today = datetime.now()
+        year, month = today.year, today.month
+        selected_mes_str = today.strftime('%Y-%m')
+    reservas_query = Reserva.query.join(Usuario)
+    reservas_query = reservas_query.filter(
+        db.extract('year', Reserva.fecha_venta) == year,
+        db.extract('month', Reserva.fecha_venta) == month,
+        Usuario.rol.in_(['ejecutivo', 'analista', 'controling'])
+    )
+    if selected_empresa_id:
+        reservas_query = reservas_query.filter(Usuario.empresa_id == int(selected_empresa_id))
+    if selected_ejecutivo_id:
+        reservas_query = reservas_query.filter(Reserva.usuario_id == selected_ejecutivo_id)
+    reservas = reservas_query.order_by(Reserva.fecha_venta.desc()).all()
+    reservas_data = []
+    for r in reservas:
+        reservas_data.append({
+            'destino': r.destino,
+            'fecha_venta': r.fecha_venta,
+            'fecha_viaje': r.fecha_viaje,
+            'nombre_pasajero': r.nombre_pasajero,
+            'telefono_pasajero': r.telefono_pasajero,
+            'mail_pasajero': r.mail_pasajero
+        })
+    return {
+        'reservas': reservas_data,
+        'empresas': empresas,
+        'ejecutivos': ejecutivos,
+        'meses_anteriores': meses_anteriores,
+        'selected_mes_str': selected_mes_str,
+        'selected_empresa_id': selected_empresa_id,
+        'selected_ejecutivo_id': selected_ejecutivo_id
+    }
 
 @app.route('/estados_de_venta')
 @login_required
@@ -3598,16 +3677,32 @@ def exportar_reservas_usuario():
 @login_required
 @rol_required('admin', 'master')
 def exportar_panel_comisiones():
-    ejecutivo_id = request.args.get('ejecutivo_id', type=int)
-    rango_fechas_str = request.args.get('rango_fechas', 'ultimos_30_dias')
+    selected_mes_str = request.args.get('mes', '')
+    selected_empresa_id = request.args.get('empresa_id', '')
+    selected_ejecutivo_id = request.args.get('ejecutivo_id', type=int)
 
-    ejecutivos = Usuario.query.filter(Usuario.rol.in_(['usuario', 'admin'])).order_by(Usuario.nombre).all()
     reservas_query = Reserva.query.join(Usuario)
-    if ejecutivo_id:
-        reservas_query = reservas_query.filter(Reserva.usuario_id == ejecutivo_id)
-    start_date, end_date = _get_date_range(rango_fechas_str)
-    reservas_query = reservas_query.filter(Reserva.fecha_venta >= start_date.strftime('%Y-%m-%d'),
-                                           Reserva.fecha_venta <= end_date.strftime('%Y-%m-%d'))
+    # Filtro por mes
+    if not selected_mes_str:
+        today = datetime.now()
+        selected_mes_str = today.strftime('%Y-%m')
+    try:
+        year, month = map(int, selected_mes_str.split('-'))
+    except Exception:
+        today = datetime.now()
+        year, month = today.year, today.month
+        selected_mes_str = today.strftime('%Y-%m')
+    reservas_query = reservas_query.filter(
+        db.extract('year', Reserva.fecha_venta) == year,
+        db.extract('month', Reserva.fecha_venta) == month,
+        Usuario.rol.in_(['ejecutivo', 'analista', 'controling'])
+    )
+    # Filtro por empresa
+    if selected_empresa_id:
+        reservas_query = reservas_query.filter(Usuario.empresa_id == int(selected_empresa_id))
+    # Filtro por ejecutivo
+    if selected_ejecutivo_id:
+        reservas_query = reservas_query.filter(Reserva.usuario_id == selected_ejecutivo_id)
     reservas = reservas_query.order_by(Reserva.fecha_venta.desc()).all()
 
     data = []
@@ -3646,8 +3741,8 @@ def exportar_panel_comisiones():
 
     # Obtener nombre del ejecutivo para el archivo
     nombre_archivo = 'comisiones'
-    if ejecutivo_id:
-        ejecutivo = Usuario.query.get(ejecutivo_id)
+    if selected_ejecutivo_id:
+        ejecutivo = Usuario.query.get(selected_ejecutivo_id)
         if ejecutivo:
             nombre_archivo = f"{ejecutivo.nombre.lower()}comision"
     

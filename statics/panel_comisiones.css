@@ -45,6 +45,21 @@
   color: #003366;
 }
 
+/* Asegura que los botones de Filtrar y Exportar tengan la misma altura */
+.btn-primary,
+.btn-success {
+  height: 38px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  display: flex;
+  align-items: center;
+}
+
+/* Si hay un margen entre ellos, mantenerlo */
+.btn-primary.me-2 {
+  margin-right: 8px;
+}
+
 /* Table styling for commissions with many columns */
 .table {
   background-color: rgba(0, 51, 102, 0.8);

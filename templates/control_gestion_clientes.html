@@ -15,30 +15,35 @@
     <!-- Filtros -->
     <div class="card mb-4">
         <div class="card-body">
-            <form method="GET" class="row g-3 align-items-center">
-                <div class="col-md-4">
-                    <label for="ejecutivo_id" class="form-label">Seleccionar Ejecutivo:</label>
-                    <select class="form-select" id="ejecutivo_id" name="ejecutivo_id" onchange="this.form.submit()">
+            <form method="GET" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label for="mes" class="form-label">Filtrar por mes de venta:</label>
+                    <input type="month" class="form-select" id="mes" name="mes" value="{{ selected_mes_str or '' }}">
+                </div>
+                {% if current_user.rol in ['master', 'admin'] %}
+                <div class="col-md-3">
+                    <label for="empresa_id" class="form-label">Filtrar por empresa:</label>
+                    <select class="form-select" id="empresa_id" name="empresa_id">
+                        <option value="">Todas las empresas</option>
+                        {% for empresa in empresas %}
+                        <option value="{{ empresa.id }}" {% if empresa.id|string == selected_empresa_id %}selected{% endif %}>
+                            {{ empresa.nombre }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+                <div class="col-md-3">
+                    <label for="ejecutivo_id" class="form-label">Filtrar por ejecutivo:</label>
+                    <select class="form-select" id="ejecutivo_id" name="ejecutivo_id">
                         <option value="">Todos los Ejecutivos</option>
                         {% for user in ejecutivos %}
                         <option value="{{ user.id }}" {% if user.id == selected_ejecutivo_id %}selected{% endif %}>{{ user.nombre }} {{ user.apellidos }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-md-4">
-                    <label for="rango_fechas" class="form-label">Rango de Fechas:</label>
-                    <select class="form-select" id="rango_fechas" name="rango_fechas" onchange="this.form.submit()">
-                        <option value="ultimos_30_dias" {% if selected_rango_fechas == 'ultimos_30_dias' %}selected{% endif %}>Últimos 30 días</option>
-                        {% for month_year in meses_anteriores %}
-                        <option value="{{ month_year }}" {% if selected_rango_fechas == month_year %}selected{% endif %}>{{ month_year }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
                 <div class="col-md-2">
                     <button type="submit" class="btn btn-primary">Filtrar</button>
-                </div>
-                <div class="col-md-2">
-                    <a href="{{ url_for('exportar_control_gestion_clientes', ejecutivo_id=selected_ejecutivo_id, rango_fechas=selected_rango_fechas) }}" class="btn btn-success">Exportar a Excel</a>
                 </div>
             </form>
         </div>
@@ -70,19 +75,13 @@
                         <tr>
                             <td data-label="Ejecutivo">{{ reserva.usuario.username }}</td>
                             <td data-label="Estado de Pago">
-                                <span class="badge {% if reserva.estado_pago == 'Pagado' %}bg-success{% elif reserva.estado_pago == 'Pendiente' %}bg-warning{% else %}bg-secondary{% endif %}">
-                                    {{ reserva.estado_pago }}
-                                </span>
+                                <span class="badge {% if reserva.estado_pago == 'Pagado' %}bg-success{% elif reserva.estado_pago == 'Pendiente' %}bg-warning{% else %}bg-secondary{% endif %}" data-estado-pago>{{ reserva.estado_pago }}</span>
                             </td>
                             <td data-label="Venta Cobrada">
-                                <span class="badge {% if reserva.venta_cobrada == 'Cobrada' %}bg-success{% elif reserva.venta_cobrada == 'Pendiente' %}bg-warning{% else %}bg-secondary{% endif %}">
-                                    {{ reserva.venta_cobrada }}
-                                </span>
+                                <span class="badge {% if reserva.venta_cobrada == 'Cobrada' %}bg-success{% elif reserva.venta_cobrada == 'Pendiente' %}bg-warning{% else %}bg-secondary{% endif %}" data-venta-cobrada>{{ reserva.venta_cobrada }}</span>
                             </td>
                             <td data-label="Venta Emitida">
-                                <span class="badge {% if reserva.venta_emitida == 'Emitida' %}bg-success{% elif reserva.venta_emitida == 'Pendiente' %}bg-warning{% else %}bg-secondary{% endif %}">
-                                    {{ reserva.venta_emitida }}
-                                </span>
+                                <span class="badge {% if reserva.venta_emitida == 'Emitida' %}bg-success{% elif reserva.venta_emitida == 'Pendiente' %}bg-warning{% else %}bg-secondary{% endif %}" data-venta-emitida>{{ reserva.venta_emitida }}</span>
                             </td>
                             <td data-label="Nombre Pasajero">{{ reserva.nombre_pasajero }}</td>
                             <td data-label="Teléfono">{{ reserva.telefono_pasajero }}</td>
@@ -134,7 +133,7 @@
             <div class="card bg-warning text-white">
                 <div class="card-body">
                     <h5 class="card-title">Pendientes</h5>
-                    <h3 class="card-text">{{ reservas|selectattr('estado_pago', 'equalto', 'Pendiente')|list|length }}</h3>
+                    <h3 class="card-text" id="pendientes-js">0</h3>
                 </div>
             </div>
         </div>
@@ -149,4 +148,6 @@
     </div>
     {% endif %}
 </div>
+
+<script src="{{ url_for('static', filename='scripts/pendientes_control_gestion_clientes.js') }}"></script>
 {% endblock %}

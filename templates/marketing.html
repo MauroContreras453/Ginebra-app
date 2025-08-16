@@ -15,30 +15,36 @@
     <!-- Filtros -->
     <div class="card mb-4">
         <div class="card-body">
-            <form method="GET" class="row g-3 align-items-center">
-                <div class="col-md-4">
-                    <label for="ejecutivo_id" class="form-label">Seleccionar Ejecutivo:</label>
-                    <select class="form-select" id="ejecutivo_id" name="ejecutivo_id" onchange="this.form.submit()">
+            <form method="GET" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label for="mes" class="form-label">Filtrar por mes de venta:</label>
+                    <input type="month" class="form-select" id="mes" name="mes" value="{{ selected_mes_str or '' }}">
+                </div>
+                {% if current_user.rol in ['master', 'admin'] %}
+                <div class="col-md-3">
+                    <label for="empresa_id" class="form-label">Filtrar por empresa:</label>
+                    <select class="form-select" id="empresa_id" name="empresa_id">
+                        <option value="">Todas las empresas</option>
+                        {% for empresa in empresas %}
+                        <option value="{{ empresa.id }}" {% if empresa.id|string == selected_empresa_id %}selected{% endif %}>
+                            {{ empresa.nombre }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+                <div class="col-md-3">
+                    <label for="ejecutivo_id" class="form-label">Filtrar por ejecutivo:</label>
+                    <select class="form-select" id="ejecutivo_id" name="ejecutivo_id">
                         <option value="">Todos los Ejecutivos</option>
                         {% for user in ejecutivos %}
                         <option value="{{ user.id }}" {% if user.id == selected_ejecutivo_id %}selected{% endif %}>{{ user.nombre }} {{ user.apellidos }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-md-4">
-                    <label for="rango_fechas" class="form-label">Rango de Fechas:</label>
-                    <select class="form-select" id="rango_fechas" name="rango_fechas" onchange="this.form.submit()">
-                        <option value="ultimos_30_dias" {% if selected_rango_fechas == 'ultimos_30_dias' %}selected{% endif %}>Últimos 30 días</option>
-                        {% for month_year in meses_anteriores %}
-                        <option value="{{ month_year }}" {% if selected_rango_fechas == month_year %}selected{% endif %}>{{ month_year }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <button type="submit" class="btn btn-primary">Filtrar</button>
-                </div>
-                <div class="col-md-2">
-                    <a href="{{ url_for('exportar_marketing', ejecutivo_id=selected_ejecutivo_id, rango_fechas=selected_rango_fechas) }}" class="btn btn-success">Exportar a Excel</a>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary me-2">Filtrar</button>
+                    <a href="{{ url_for('exportar_marketing', ejecutivo_id=selected_ejecutivo_id, rango_fechas=selected_mes_str) }}" class="btn btn-success me-2">Exportar</a>
                 </div>
             </form>
         </div>

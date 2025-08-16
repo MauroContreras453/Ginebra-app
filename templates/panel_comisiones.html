@@ -15,30 +15,36 @@
     <!-- Filtros -->
     <div class="card mb-4">
         <div class="card-body">
-            <form method="GET" class="row g-3 align-items-center">
-                <div class="col-md-4">
-                    <label for="ejecutivo_id" class="form-label">Seleccionar Ejecutivo:</label>
-                    <select class="form-select" id="ejecutivo_id" name="ejecutivo_id" onchange="this.form.submit()">
+            <form method="GET" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label for="mes" class="form-label">Filtrar por mes de venta:</label>
+                    <input type="month" class="form-select" id="mes" name="mes" value="{{ selected_mes_str or '' }}">
+                </div>
+                {% if current_user.rol in ['master', 'admin'] %}
+                <div class="col-md-3">
+                    <label for="empresa_id" class="form-label">Filtrar por empresa:</label>
+                    <select class="form-select" id="empresa_id" name="empresa_id">
+                        <option value="">Todas las empresas</option>
+                        {% for empresa in empresas %}
+                        <option value="{{ empresa.id }}" {% if empresa.id|string == selected_empresa_id %}selected{% endif %}>
+                            {{ empresa.nombre }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+                <div class="col-md-3">
+                    <label for="ejecutivo_id" class="form-label">Filtrar por ejecutivo:</label>
+                    <select class="form-select" id="ejecutivo_id" name="ejecutivo_id">
                         <option value="">Todos los Ejecutivos</option>
                         {% for user in ejecutivos %}
                         <option value="{{ user.id }}" {% if user.id == selected_ejecutivo_id %}selected{% endif %}>{{ user.nombre }} {{ user.apellidos }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-md-4">
-                    <label for="rango_fechas" class="form-label">Rango de Fechas:</label>
-                    <select class="form-select" id="rango_fechas" name="rango_fechas" onchange="this.form.submit()">
-                        <option value="ultimos_30_dias" {% if selected_rango_fechas == 'ultimos_30_dias' %}selected{% endif %}>Últimos 30 días</option>
-                        {% for month_year in meses_anteriores %}
-                        <option value="{{ month_year }}" {% if selected_rango_fechas == month_year %}selected{% endif %}>{{ month_year }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <button type="submit" class="btn btn-primary">Filtrar</button>
-                </div>
-                <div class="col-md-2">
-                    <a href="{{ url_for('exportar_panel_comisiones', ejecutivo_id=selected_ejecutivo_id, rango_fechas=selected_rango_fechas) }}" class="btn btn-success">Exportar a Excel</a>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary me-2">Filtrar</button>
+                    <a href="{{ url_for('exportar_panel_comisiones', mes=selected_mes_str, empresa_id=selected_empresa_id, ejecutivo_id=selected_ejecutivo_id) }}" class="btn btn-success me-2">Exportar</a>
                 </div>
             </form>
         </div>
@@ -72,19 +78,19 @@
                         {% for data in datos_comisiones %}
                         <tr>
                             <td data-label="Producto">{{ data.reserva.producto }}</td>
-                            <td data-label="P. Venta">${{ "%.2f"|format(data.precio_venta_total) }}</td>
-                            <td data-label="Hotel">${{ "%.2f"|format(data.hotel_neto) }}</td>
-                            <td data-label="Vuelo">${{ "%.2f"|format(data.vuelo_neto) }}</td>
-                            <td data-label="Traslado">${{ "%.2f"|format(data.traslado_neto) }}</td>
-                            <td data-label="Seguro">${{ "%.2f"|format(data.seguro_neto) }}</td>
-                            <td data-label="Circuito">${{ "%.2f"|format(data.circuito_neto) }}</td>
-                            <td data-label="Crucero">${{ "%.2f"|format(data.crucero_neto) }}</td>
-                            <td data-label="Excursión">${{ "%.2f"|format(data.excursion_neto) }}</td>
-                            <td data-label="Paquete">${{ "%.2f"|format(data.paquete_neto) }}</td>
-                            <td data-label="Bonos">${{ "%.2f"|format(data.bonos) }}</td>
-                            <td data-label="Ganancia">${{ "%.2f"|format(data.ganancia_total) }}</td>
-                            <td data-label="Com. Ejec.">${{ "%.2f"|format(data.comision_ejecutivo) }}</td>
-                            <td data-label="Com. Agen.">${{ "%.2f"|format(data.comision_agencia) }}</td>
+                            <td data-label="P. Venta">${{ data.precio_venta_total|formato_miles }}</td>
+                            <td data-label="Hotel">${{ data.hotel_neto|formato_miles }}</td>
+                            <td data-label="Vuelo">${{ data.vuelo_neto|formato_miles }}</td>
+                            <td data-label="Traslado">${{ data.traslado_neto|formato_miles }}</td>
+                            <td data-label="Seguro">${{ data.seguro_neto|formato_miles }}</td>
+                            <td data-label="Circuito">${{ data.circuito_neto|formato_miles }}</td>
+                            <td data-label="Crucero">${{ data.crucero_neto|formato_miles }}</td>
+                            <td data-label="Excursión">${{ data.excursion_neto|formato_miles }}</td>
+                            <td data-label="Paquete">${{ data.paquete_neto|formato_miles }}</td>
+                            <td data-label="Bonos">${{ data.bonos|formato_miles }}</td>
+                            <td data-label="Ganancia">${{ data.ganancia_total|formato_miles }}</td>
+                            <td data-label="Com. Ejec.">${{ data.comision_ejecutivo|formato_miles }}</td>
+                            <td data-label="Com. Agen.">${{ data.comision_agencia|formato_miles }}</td>
                         </tr>
                         {% else %}
                         <tr>
@@ -97,19 +103,19 @@
                     <tfoot class="table-dark">
                         <tr>
                             <th>TOTAL</th>
-                            <th>${{ "%.2f"|format(totales.precio_venta_total) }}</th>
-                            <th>${{ "%.2f"|format(totales.hotel_neto) }}</th>
-                            <th>${{ "%.2f"|format(totales.vuelo_neto) }}</th>
-                            <th>${{ "%.2f"|format(totales.traslado_neto) }}</th>
-                            <th>${{ "%.2f"|format(totales.seguro_neto) }}</th>
-                            <th>${{ "%.2f"|format(totales.circuito_neto) }}</th>
-                            <th>${{ "%.2f"|format(totales.crucero_neto) }}</th>
-                            <th>${{ "%.2f"|format(totales.excursion_neto) }}</th>
-                            <th>${{ "%.2f"|format(totales.paquete_neto) }}</th>
-                            <th>${{ "%.2f"|format(totales.bonos) }}</th>
-                            <th>${{ "%.2f"|format(totales.ganancia_total) }}</th>
-                            <th>${{ "%.2f"|format(totales.comision_ejecutivo) }}</th>
-                            <th>${{ "%.2f"|format(totales.comision_agencia) }}</th>
+                            <th>${{ totales.precio_venta_total|formato_miles }}</th>
+                            <th>${{ totales.hotel_neto|formato_miles }}</th>
+                            <th>${{ totales.vuelo_neto|formato_miles }}</th>
+                            <th>${{ totales.traslado_neto|formato_miles }}</th>
+                            <th>${{ totales.seguro_neto|formato_miles }}</th>
+                            <th>${{ totales.circuito_neto|formato_miles }}</th>
+                            <th>${{ totales.crucero_neto|formato_miles }}</th>
+                            <th>${{ totales.excursion_neto|formato_miles }}</th>
+                            <th>${{ totales.paquete_neto|formato_miles }}</th>
+                            <th>${{ totales.bonos|formato_miles }}</th>
+                            <th>${{ totales.ganancia_total|formato_miles }}</th>
+                            <th>${{ totales.comision_ejecutivo|formato_miles }}</th>
+                            <th>${{ totales.comision_agencia|formato_miles }}</th>
                         </tr>
                     </tfoot>
                 </table>
@@ -138,7 +144,7 @@
             <div class="card bg-success text-white">
                 <div class="card-body">
                     <h5 class="card-title">Ventas Totales</h5>
-                    <h3 class="card-text">${{ "%.2f"|format(totales.precio_venta_total) }}</h3>
+                    <h3 class="card-text">${{ totales.precio_venta_total|formato_miles }}</h3>
                 </div>
             </div>
         </div>
@@ -146,7 +152,7 @@
             <div class="card bg-warning text-white">
                 <div class="card-body">
                     <h5 class="card-title">Total Ganancia</h5>
-                    <h3 class="card-text">${{ "%.2f"|format(totales.ganancia_total) }}</h3>
+                    <h3 class="card-text">${{ totales.ganancia_total|formato_miles }}</h3>
                 </div>
             </div>
         </div>
@@ -154,7 +160,7 @@
             <div class="card bg-info text-white">
                 <div class="card-body">
                     <h5 class="card-title">Comisiones Ejecutivos</h5>
-                    <h3 class="card-text">${{ "%.2f"|format(totales.comision_ejecutivo) }}</h3>
+                    <h3 class="card-text">${{ totales.comision_ejecutivo|formato_miles }}</h3>
                 </div>
             </div>
         </div>
