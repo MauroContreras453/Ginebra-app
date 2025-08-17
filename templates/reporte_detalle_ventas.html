@@ -36,9 +36,11 @@
                 <div class="col-md-2">
                     <button type="submit" class="btn btn-primary">Filtrar</button>
                 </div>
+                {% if current_user.rol in ['master', 'admin'] %}
                 <div class="col-md-3">
                     <a href="{{ url_for('exportar_reporte_detalle_ventas', mes=selected_mes_str) }}" class="btn btn-success">Exportar a Excel</a>
                 </div>
+                {% endif %}
             </form>
         </div>
     </div>
@@ -52,6 +54,7 @@
                 <table class="table table-bordered table-hover text-white align-middle">
                     <thead>
                         <tr>
+                            <th>Ejecutivo</th>
                             <th>Producto</th>
                             <th>P. Venta</th>
                             <th>Hotel</th>
@@ -71,6 +74,7 @@
                     <tbody>
                         {% for data in datos_comisiones %}
                         <tr>
+                            <td data-label="Ejecutivo">{{ data.ejecutivo }}</td>
                             <td data-label="Producto">{{ data.reserva.producto }}</td>
                             <td data-label="P. Venta">${{ data.precio_venta_total|formato_miles }}</td>
                             <td data-label="Hotel">${{ data.hotel_neto|formato_miles }}</td>

@@ -1359,7 +1359,7 @@ def contabilidad_empresas():
 # Endpoint para mostrar la liquidación de sueldo
 @app.route('/liquidacion/<int:usuario_id>/<periodo>')
 @login_required
-@rol_required('admin', 'master')
+@rol_required('admin', 'master', 'controling')
 def ver_liquidacion(usuario_id, periodo):
     """Muestra la liquidación de sueldo para un usuario y periodo (YYYY-MM)"""
     usuario = Usuario.query.get_or_404(usuario_id)
@@ -1416,7 +1416,7 @@ def ver_liquidacion(usuario_id, periodo):
 
 @app.route('/liquidacion/<int:usuario_id>/<periodo>/pdf')
 @login_required
-@rol_required('admin', 'master')
+@rol_required('admin', 'master', 'controling')
 def descargar_liquidacion_pdf(usuario_id, periodo):
     usuario = Usuario.query.get_or_404(usuario_id)
     año, mes = map(int, periodo.split('-'))
@@ -1709,24 +1709,25 @@ def exportar_reservas_admin():
     
     reservas = query.order_by(Reserva.fecha_venta.desc()).all()
     
-    # Preparar datos para Excel
-    data = [{
-        'ID': r.id,
-        'Usuario': f"{r.usuario.nombre} {r.usuario.apellidos}" if r.usuario else 'Sin usuario',
-        'Empresa': r.usuario.empresa.nombre if r.usuario and r.usuario.empresa else 'Sin empresa',
-        'Fecha Venta': r.fecha_venta.strftime('%Y-%m-%d') if r.fecha_venta else '',
-        'Fecha Viaje': r.fecha_viaje.strftime('%Y-%m-%d') if r.fecha_viaje else '',
-        'Producto': r.producto or '',
-        'Nombre Pasajero': r.nombre_pasajero or '',
-        'Teléfono': r.telefono_pasajero or '',
-        'Email': r.mail_pasajero or '',
-        'Localizadores': r.localizadores or '',
-        'Destino': r.destino or '',
-        'Estado Pago': r.estado_pago or '',
-        'Venta Cobrada': r.venta_cobrada or '',
-        'Venta Emitida': r.venta_emitida or '',
-        'Precio Total': float(r.precio_venta_total) if r.precio_venta_total else 0
-    } for r in reservas]
+    # Preparar datos para Excel: incluir todos los campos de la clase Reserva
+    data = []
+    for r in reservas:
+        row = {}
+        for col in Reserva.__table__.columns:
+            val = getattr(r, col.name)
+            # Formatear fechas y decimales
+            if isinstance(val, datetime):
+                row[col.name] = val.strftime('%Y-%m-%d')
+            elif isinstance(val, Decimal):
+                row[col.name] = float(val)
+            elif isinstance(val, bytes):
+                row[col.name] = f"<BINARY {len(val)} bytes>" if val else ''
+            else:
+                row[col.name] = val
+        # Agregar campos de usuario y empresa legibles
+        row['usuario_nombre'] = f"{r.usuario.nombre} {r.usuario.apellidos}" if r.usuario else 'Sin usuario'
+        row['empresa_nombre'] = r.usuario.empresa.nombre if r.usuario and r.usuario.empresa else 'Sin empresa'
+        data.append(row)
     
     # Crear archivo Excel
     df = pd.DataFrame(data)
@@ -1772,6 +1773,7 @@ def exportar_reservas_admin():
 @app.route('/admin/reservas')
 @login_required
 @rol_required('admin', 'master', 'controling', 'ejecutivo', 'analista')
+@empresa_tiene_gestion_required
 def admin_reservas():
     # Obtener parámetros de filtro
     empresa_param = request.args.get('empresa_id', '')
@@ -1844,7 +1846,8 @@ def admin_reservas():
 # =====================
 @app.route('/control_gestion_clientes')
 @login_required
-@rol_required('admin', 'master')
+@rol_required('admin', 'master' ,'controling')
+@empresa_tiene_gestion_required
 def control_gestion_clientes():
     selected_mes_str = request.args.get('mes', '')
     selected_empresa_id = request.args.get('empresa_id', '')
@@ -1859,7 +1862,8 @@ def control_gestion_clientes():
 
 @app.route('/postventa')
 @login_required
-@rol_required('admin', 'master')
+@rol_required('admin', 'master', 'controling')
+@empresa_tiene_gestion_required
 def postventa():
     selected_postventa = request.args.get('postventa', '')
     empresas = Empresa.query.all()
@@ -1868,7 +1872,8 @@ def postventa():
 
 @app.route('/ranking_ejecutivos')
 @login_required
-@rol_required('admin', 'master')
+@rol_required('admin', 'master', 'controling')
+@empresa_tiene_gestion_required
 def ranking_ejecutivos():
     selected_mes_str = request.args.get('mes', '')
     selected_empresa_id = request.args.get('empresa_id', '')
@@ -1946,7 +1951,15 @@ def reporte_detalle_ventas():
     for reserva in reservas:
         comision_ejecutivo, comision_agencia, ganancia_total, comision_ejecutivo_porcentaje, _ = calcular_comisiones(reserva, reserva.usuario)
         bonos = reserva.bonos or 0.0
+        # Obtener nombre del ejecutivo
+        if getattr(reserva, 'nombre_ejecutivo', None):
+            ejecutivo = reserva.nombre_ejecutivo
+        elif reserva.usuario:
+            ejecutivo = f"{getattr(reserva.usuario, 'nombre', '')} {getattr(reserva.usuario, 'apellidos', '')}"
+        else:
+            ejecutivo = ''
         datos_comisiones.append({
+            'ejecutivo': ejecutivo,
             'reserva': reserva,
             'precio_venta_total': reserva.precio_venta_total,
             'hotel_neto': reserva.hotel_neto,
@@ -1994,7 +2007,8 @@ def reporte_detalle_ventas():
 
 @app.route('/reporte_ventas_general_mensual')
 @login_required
-@rol_required('admin', 'master')
+@rol_required('admin', 'master', 'controling')
+@empresa_tiene_gestion_required
 def reporte_ventas_general_mensual():
     selected_mes_str = request.args.get('mes', '')
     selected_empresa_id = request.args.get('empresa_id', '')
@@ -2111,7 +2125,8 @@ def obtener_datos_reporte_ventas_general_mensual(selected_mes_str, selected_empr
 
 @app.route('/marketing')
 @login_required
-@rol_required('admin', 'master')
+@rol_required('admin', 'master' ,'controling')
+@empresa_tiene_gestion_required
 def marketing():
     selected_opinion = request.args.get('opinion', '')
     empresas = Empresa.query.all()
@@ -2178,7 +2193,8 @@ def update_reserva_opinion_postventa():
 
 @app.route('/estados_de_venta')
 @login_required
-@rol_required('admin', 'master')
+@rol_required('admin', 'master', 'controling')
+@empresa_tiene_gestion_required
 def estados_de_venta():
     """Página para ver estados de venta filtrados por mes de fecha de viaje"""
     selected_mes_str = request.args.get('mes', '')
@@ -2263,6 +2279,7 @@ def estados_de_venta():
 # NUEVO ENDPOINT AGRUPADO POR AÑO Y MESES
 @app.route('/balance_mensual')
 @login_required
+@rol_required('admin', 'master', 'controling')
 @empresa_tiene_gestion_required
 def balance_mensual():
     """Mostrar balance mensual agrupado por meses del año seleccionado"""
@@ -2338,7 +2355,8 @@ def balance_mensual():
 
 @app.route('/liquidaciones')
 @login_required
-@rol_required('admin', 'master')
+@rol_required('admin', 'master', 'controling')
+@empresa_tiene_gestion_required
 def liquidaciones():
     """Mostrar liquidaciones filtradas por ejecutivo y fecha de venta"""
     # Obtener parámetros
@@ -2497,7 +2515,7 @@ def gestionar_reservas():
 
         db.session.commit()
         flash('Reserva guardada.', 'success')
-        return redirect(url_for('gestionar_reservas'))
+        return redirect(url_for('admin_reservas'))
 
     search_query = request.args.get('search', '').strip()
     page = request.args.get('page', 1, type=int)
@@ -2567,7 +2585,7 @@ def descargar_comprobante(reserva_id):
     reserva = Reserva.query.get_or_404(reserva_id)
 
     # Verifica permisos: solo admin/master o dueño de la reserva
-    if current_user.rol not in ('admin', 'master') and reserva.usuario_id != current_user.id:
+    if current_user.rol not in ('admin', 'master', 'controling') and reserva.usuario_id != current_user.id:
         flash('No autorizado para ver este comprobante.', 'danger')
         return redirect(url_for('gestionar_reservas'))
 
@@ -3498,82 +3516,49 @@ def exportar_reservas():
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
 
-@app.route('/exportar_control_gestion_clientes')
-@login_required
-@rol_required('admin', 'master')
-def exportar_control_gestion_clientes():
-    ejecutivo_id = request.args.get('ejecutivo_id', type=int)
-    rango_fechas_str = request.args.get('rango_fechas', 'ultimos_30_dias')
-
-    reservas_query = Reserva.query.join(Usuario)
-    if ejecutivo_id:
-        reservas_query = reservas_query.filter(Reserva.usuario_id == ejecutivo_id)
-    start_date, end_date = _get_date_range(rango_fechas_str)
-    reservas_query = reservas_query.filter(Reserva.fecha_viaje >= start_date.strftime('%Y-%m-%d'),
-                                           Reserva.fecha_viaje <= end_date.strftime('%Y-%m-%d'))
-    reservas = reservas_query.order_by(Reserva.fecha_viaje.desc()).all()
-
-    data = [
-        {
-            'Ejecutivo': f"{r.nombre_ejecutivo}\n{r.correo_ejecutivo}",
-            'Estado de Pago': r.estado_pago,
-            'Venta Cobrada': r.venta_cobrada,
-            'Venta Emitida': r.venta_emitida,
-            'Nombre Pasajero': r.nombre_pasajero,
-            'Teléfono Pasajero': r.telefono_pasajero,
-            'Mail Pasajero': r.mail_pasajero,
-            'Destino': r.destino,
-            'Producto': r.producto,
-            'Fecha de Compra': r.fecha_venta,
-            'Fecha de Viaje': r.fecha_viaje,
-            'Opinión': getattr(r, 'opinion', ''),
-            'Postventa': getattr(r, 'postventa', '')
-        }
-        for r in reservas
-    ]
-
-    output = io.BytesIO()
-    df = pd.DataFrame(data)
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='Control Gestión Clientes')
-    output.seek(0)
-
-    return send_file(
-        output,
-        as_attachment=True,
-        download_name='control_gestion_clientes.xlsx',
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
 
 @app.route('/exportar_reporte_detalle_ventas')
 @login_required
 @rol_required('admin', 'master')
 def exportar_reporte_detalle_ventas():
     selected_mes_str = request.args.get('mes', '')
+    selected_empresa_id = request.args.get('empresa_id', '')
+    # Lógica igual que en reporte_detalle_ventas para obtener los datos_comisiones
+    empresas = Empresa.query.all()
+    if not selected_mes_str:
+        today = datetime.now()
+        selected_mes_str = today.strftime('%Y-%m')
     try:
-        month_name, year_str = selected_mes_str.split(' ')
-        month_num = datetime.strptime(month_name, '%B').month
-        year = int(year_str)
-        start_date = datetime(year, month_num, 1)
-        if month_num == 12:
-            end_date = datetime(year + 1, 1, 1) - timedelta(days=1)
-        else:
-            end_date = datetime(year, month_num + 1, 1) - timedelta(days=1)
+        year, month = map(int, selected_mes_str.split('-'))
     except Exception:
         today = datetime.now()
-        start_date, end_date = today, today
-
-    reservas_query = Reserva.query.join(Usuario).filter(
-        Reserva.fecha_venta >= start_date.strftime('%Y-%m-%d'),
-        Reserva.fecha_venta <= end_date.strftime('%Y-%m-%d')
+        year, month = today.year, today.month
+        selected_mes_str = today.strftime('%Y-%m')
+    reservas_query = Reserva.query.join(Usuario)
+    reservas_query = reservas_query.filter(
+        db.extract('year', Reserva.fecha_venta) == year,
+        db.extract('month', Reserva.fecha_venta) == month,
+        Usuario.rol.in_(['ejecutivo', 'analista', 'controling'])
     )
-
-    # Generar datos de detalle igual que en la tabla
-    rows = []
-    for reserva in reservas_query.all():
+    if selected_empresa_id and current_user.rol in ['master', 'admin']:
+        reservas_query = reservas_query.filter(Usuario.empresa_id == int(selected_empresa_id))
+    elif current_user.rol == 'controling':
+        reservas_query = reservas_query.filter(Usuario.empresa_id == current_user.empresa_id)
+    reservas = reservas_query.all()
+    # Generar datos_comisiones igual que en la vista y exportar todos los campos de la tabla
+    datos_comisiones = []
+    for reserva in reservas:
         comision_ejecutivo, comision_agencia, ganancia_total, comision_ejecutivo_porcentaje, _ = calcular_comisiones(reserva, reserva.usuario)
         bonos = reserva.bonos or 0.0
-        rows.append({
+        # Obtener nombre del ejecutivo
+        if getattr(reserva, 'nombre_ejecutivo', None):
+            ejecutivo = reserva.nombre_ejecutivo
+        elif reserva.usuario:
+            ejecutivo = f"{getattr(reserva.usuario, 'nombre', '')} {getattr(reserva.usuario, 'apellidos', '')}"
+        else:
+            ejecutivo = ''
+        datos_comisiones.append({
+            'Ejecutivo': ejecutivo,
             'Producto': reserva.producto,
             'P. Venta': reserva.precio_venta_total,
             'Hotel': reserva.hotel_neto,
@@ -3590,11 +3575,10 @@ def exportar_reporte_detalle_ventas():
             'Com. Agen.': comision_agencia
         })
     output = io.BytesIO()
-    df = pd.DataFrame(rows)
+    df = pd.DataFrame(datos_comisiones)
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='Detalle Ventas')
     output.seek(0)
-
     return send_file(
         output,
         as_attachment=True,

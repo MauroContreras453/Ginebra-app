@@ -83,8 +83,12 @@
                                     <option value="Pendiente" {% if estado.estado_pago == 'Pendiente' %}selected{% endif %}>Pendiente</option>
                                 </select>
                             </td>
-                            <td>
-                                <a href="{{ url_for('ver_liquidacion', usuario_id=estado.id, periodo=selected_mes_str.split(' ')[0]) }}" class="btn btn-outline-primary btn-sm" target="_blank">Generar PDF</a>
+                            <td class="text-center">
+                                <div class="d-inline-flex gap-2">
+                                    <a href="{{ url_for('ver_liquidacion', usuario_id=estado.id, periodo=selected_mes_str.split(' ')[0]) }}" target="_blank" title="Generar PDF" class="icon-action text-info">
+                                        <i class="fa-regular fa-file-lines"></i>
+                                    </a>
+                                </div>
                             </td>
                         </tr>
                         {% endfor %}

@@ -78,9 +78,17 @@
                             <td>{{ reserva.estado_pago }}</td>
                             <td>{{ reserva.venta_cobrada }}</td>
                             <td>{{ reserva.venta_emitida }}</td>
-                            <td>
-                                <a href="{{ url_for('gestionar_reservas', editar=reserva.id) }}" class="btn btn-sm btn-primary">Editar</a>
-                                <a href="{{ url_for('ver_pdf_db', reserva_id=reserva.id) }}" class="btn btn-sm btn-secondary">Ver PDF</a>
+                            <td class="text-center">
+                                <div class="d-inline-flex gap-2">
+                                    <a href="{{ url_for('ver_pdf_db', reserva_id=reserva.id) }}" target="_blank" title="Ver PDF" class="icon-action text-info">
+                                        <i class="fa-regular fa-file-pdf"></i>
+                                    </a>
+                                    {% if current_user.rol in ['admin', 'master'] or reserva.usuario_id == current_user.id %}
+                                        <a href="{{ url_for('gestionar_reservas', editar=reserva.id) }}" class="icon-action text-warning" title="Editar">
+                                            <i class="fa-regular fa-pen-to-square"></i>
+                                        </a> 
+                                    {% endif %}
+                                </div>
                             </td>
                         </tr>
                         {% endfor %}

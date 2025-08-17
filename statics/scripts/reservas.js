@@ -8,7 +8,7 @@ function safeFloat(val) {
   if (!val) return 0;
   return parseFloat(val.toString().replace(',', '.')) || 0;
 }
-
+ 
 function calcularCamposReserva() {
   const total = safeFloat(document.getElementById('precio_venta_total').value);
   const hotel = safeFloat(document.getElementById('hotel_neto').value);
