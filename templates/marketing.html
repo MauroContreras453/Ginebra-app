@@ -67,7 +67,8 @@
                                 </select>
                             </td>
                             <td data-label="Experiencia">
-                                <input type="text" class="form-control form-control-sm" name="experiencia_{{ reserva.id }}" value="{{ reserva.experiencia or '' }}">
+                                <textarea class="form-control form-control-sm d-none" name="experiencia_{{ reserva.id }}">{{ reserva.experiencia or '' }}</textarea>
+                                <div class="experiencia-preview textarea-preview">{{ reserva.experiencia or '' }}</div>
                             </td>
                         </tr>
                         {% else %}
@@ -89,4 +90,5 @@
         </div>
     </div>
 </div>
+<script src="{{ url_for('static', filename='scripts/seguimiento_modal.js') }}"></script>
 {% endblock %}

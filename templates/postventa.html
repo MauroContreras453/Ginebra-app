@@ -8,6 +8,7 @@
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='scripts/update_opinion_postventa.js') }}"></script>
+<script src="{{ url_for('static', filename='scripts/seguimiento_modal.js') }}"></script>
 {% endblock %}
 
 {% block content %}
@@ -74,7 +75,8 @@
                                 </select>
                             </td>
                             <td data-label="Seguimiento">
-                                <input type="text" class="form-control form-control-sm" name="seguimiento_{{ reserva.id }}" value="{{ reserva.seguimiento or '' }}">
+                                <textarea class="form-control form-control-sm d-none" name="seguimiento_{{ reserva.id }}">{{ reserva.seguimiento or '' }}</textarea>
+                                <div class="seguimiento-preview textarea-preview">{{ reserva.seguimiento or '' }}</div>
                             </td>
                         </tr>
                         {% else %}
