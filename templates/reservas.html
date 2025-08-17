@@ -31,6 +31,11 @@
             value="{{ editar_reserva.fecha_viaje if editar_reserva else '' }}" required />
         </div>
         <div class="col-md-6">
+          <label class="form-label" for="fecha_fin_viaje">Fecha de fin de viaje</label>
+          <input type="date" id="fecha_fin_viaje" class="form-control" name="fecha_fin_viaje"
+            value="{{ editar_reserva.fecha_fin_viaje if editar_reserva else '' }}" required />
+        </div>
+        <div class="col-md-6">
           <label class="form-label" for="fecha_venta">Fecha de venta</label>
           <input type="date" id="fecha_venta" class="form-control" name="fecha_venta"
             value="{{ editar_reserva.fecha_venta if editar_reserva else '' }}" required />

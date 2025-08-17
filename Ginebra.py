@@ -1219,6 +1219,7 @@ def eliminar_usuario(id):
 def nueva_empresa():
     if request.method == 'POST':
         nombre = request.form['nombre']
+        logo = request.fotm['logo']
         tiene_gestion = request.form['tiene_gestion']
         tiene_productos = request.form['tiene_productos']
         representante = request.form['representante']
@@ -1228,6 +1229,7 @@ def nueva_empresa():
         correo = request.form['correo']
         empresa = Empresa(
             nombre=nombre,
+            logo=logo,
             representante=representante,
             telefono=telefono,
             direccion=direccion,
@@ -1250,6 +1252,7 @@ def editar_empresa(id):
     empresa = Empresa.query.get_or_404(id)
     if request.method == 'POST':
         empresa.nombre = request.form['nombre']
+        empresa.logo = request.form['logo']
         empresa.representante = request.form['representante']
         empresa.telefono = request.form['telefono']
         empresa.correo = request.form['correo']
@@ -1570,6 +1573,7 @@ def exportar_empresas():
     data = [{
         'ID': e.id,
         'Nombre': e.nombre,
+        'Logo': e.logo,
         'Representante': e.representante,
         'Teléfono': e.telefono,
         'Correo': e.correo,

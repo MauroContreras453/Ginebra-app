@@ -82,6 +82,16 @@
                    value="{{ usuario.sueldo if usuario else '' }}">
         </div>
         <div class="mb-3">
+            <label for="banco" class="form-label">Banco</label>
+            <input type="text" class="form-control" id="banco" name="banco"
+                   value="{{ usuario.banco if usuario else '' }}">
+        </div>
+        <div class="mb-3">
+            <label for="cuenta_bancaria" class="form-label">Cuenta Bancaria</label>
+            <input type="text" class="form-control" id="cuenta_bancaria" name="cuenta_bancaria"
+                   value="{{ usuario.cuenta_bancaria if usuario else '' }}">
+        </div>
+        <div class="mb-3">
             <label for="rol" class="form-label">Rol</label>
             <select class="form-select" id="rol" name="rol" required>
                 <option value="ejecutivo" {% if usuario and usuario.rol == 'ejecutivo' %}selected{% endif %}>Ejecutivo</option>

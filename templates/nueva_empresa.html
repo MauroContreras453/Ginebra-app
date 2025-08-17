@@ -28,7 +28,11 @@
       <input type="text" class="form-control form-control-sm" id="nombre" name="nombre" 
              value="{{ empresa.nombre if empresa else '' }}" required>
     </div>
-
+    <div class="mb-3">
+      <label for="logo" class="form-label">Logo</label>
+      <input type="text" class="form-control form-control-sm" id="logo" name="logo" 
+             value="{{ empresa.logo if empresa else '' }}" required>
+    </div>
     <div class="row">
       <div class="col-md-6 mb-3">
         <label for="representante" class="form-label">Representante</label>
