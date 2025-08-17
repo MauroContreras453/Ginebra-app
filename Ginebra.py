@@ -171,8 +171,8 @@ class Reserva(db.Model):
     estado_pago = db.Column(db.Enum(*ESTADO_PAGO_OPTIONS, name='estado_pago_reserva'), default='No Pagado')
     venta_cobrada = db.Column(db.Enum(*VENTA_COBRADA_OPTIONS, name='venta_cobrada_options'), default='No Cobrada')
     venta_emitida = db.Column(db.Enum(*VENTA_EMITIDA_OPTIONS, name='venta_emitida_options'), default='No Emitida')
-    opinion = db.Column(db.Enum(*OPINION_OPTIONS, name='estado_opinion_viaje'), default='No')
-    postventa = db.Column(db.Enum(*POSTVENTA_OPTIONS, name='estado_postventa_viaje'), default='No')
+    opinion = db.Column(db.Enum(*OPINION_OPTIONS, name='estado_opinion_viaje'), default='no')
+    postventa = db.Column(db.Enum(*POSTVENTA_OPTIONS, name='estado_postventa_viaje'), default='no')
     estado_postventa = db.Column(db.Enum(*ESTADO_POSTVENTA_OPTIONS, name='estado_postventa_viaje'), default='not ok')
     experiencia = db.Column(db.Text, nullable=True)
     seguimiento = db.Column(db.Text, nullable=True)
@@ -455,7 +455,7 @@ def editar_usuario_existente(usuario, form, usuario_actual):
     usuario.sueldo = safe_decimal(form.get('sueldo', '0').strip())
     usuario.rol = rol_nuevo
     usuario.banco = form['banco'].strip()
-    usuario.cuenta_bancaria = form['banco_cuenta'].strip()
+    usuario.cuenta_bancaria = form['cuenta_bancaria'].strip()
     usuario.estado = form.get('estado', 'Activo').strip()
     usuario.empresa_id = empresa_id
     db.session.commit()
@@ -599,8 +599,8 @@ def set_reserva_fields(reserva, form):
     set_model_fields(
         reserva,
         form,
-        exclude={'empresa_id', 'usuario_id', 'usuario', 'comprobante_pdf'},
-        date_fields=['fecha_venta', 'fecha_viaje'],
+        exclude={'empresa_id', 'usuario_id', 'usuario', 'comprobante_pdf', 'comprobante_venta'},
+        date_fields=['fecha_venta', 'fecha_fin_viaje', 'fecha_viaje'],
         handle_pdf=True
     )
 
@@ -1582,7 +1582,6 @@ def exportar_empresas():
         'Tiene Gestión': e.tiene_gestion,
         'Tiene Productos': e.tiene_productos,
         'Usuarios Asociados': len(e.usuarios),
-        'Reservas': len(e.reservas)
     } for e in empresas]
     
     df = pd.DataFrame(data)
@@ -2454,6 +2453,7 @@ def gestionar_reservas():
         reserva_id = request.form.get('reserva_id')
         file = request.files.get('archivo_pdf')
 
+
         if reserva_id:
             reserva = Reserva.query.get(reserva_id)
             if not reserva or not puede_editar_reserva(reserva):
@@ -2461,21 +2461,28 @@ def gestionar_reservas():
                 return redirect(url_for('gestionar_reservas'))
 
             set_reserva_fields(reserva, request.form)
-
+            # Forzar que estos campos no se modifiquen desde el formulario
+            reserva.opinion = reserva.opinion or 'no'
+            reserva.postventa = reserva.postventa or 'no'
+            reserva.estado_postventa = reserva.estado_postventa or 'not ok'
             nombre_archivo, contenido_pdf, error_mensaje = guardar_comprobante(file, reserva)
             if error_mensaje:
                 flash(error_mensaje, 'danger')
             elif nombre_archivo:
                 reserva.comprobante_venta = nombre_archivo
                 reserva.comprobante_pdf = contenido_pdf
-            # Si no se subió un nuevo archivo, mantener los valores actuales
             elif not file or not file.filename:
-                # No hacer nada, se mantienen los valores actuales
-                pass
+                # Si no se subió un nuevo archivo, asegurarse de mantener los valores actuales
+                # (esto es redundante, pero explícito para evitar sobrescritura accidental)
+                reserva.comprobante_venta = reserva.comprobante_venta
+                reserva.comprobante_pdf = reserva.comprobante_pdf
 
         else:
             nueva_reserva = Reserva(
-                usuario_id=current_user.id
+                usuario_id=current_user.id,
+                opinion='no',
+                postventa='no',
+                estado_postventa='not ok'
             )
             db.session.add(nueva_reserva)
             db.session.flush()  # Asegura que nueva_reserva tenga un ID asignado
@@ -3385,9 +3392,13 @@ def ver_comprobante_catalogo(id):
 # =====================
 @app.route('/exportar_usuarios')
 @login_required
-@rol_required('admin', 'master')
+@rol_required('admin', 'master','controling')
 def exportar_usuarios():
-    usuarios = Usuario.query.all() if current_user.rol == 'master' else Usuario.query.filter(Usuario.username != 'mcontreras').all()
+    empresa_id = session.get('empresa_id_seleccionada')
+    if empresa_id:
+        usuarios = Usuario.query.filter(Usuario.empresa_id == int(empresa_id)).all()
+    else:
+        usuarios = Usuario.query.all() if current_user.rol == 'master' else Usuario.query.filter(Usuario.username != 'mcontreras').all()
 
     data = [{
         'ID': u.id,
@@ -3402,6 +3413,8 @@ def exportar_usuarios():
         'Dirección': u.direccion,
         'Comisión': u.comision,
         'Sueldo': u.sueldo,
+        'Banco': u.banco if u.banco else 'N/A',
+        'Cuenta Bancaria': u.cuenta_bancaria if u.cuenta_bancaria else 'N/A',
         'Estado': u.estado,
         'Rol': u.rol,
         'Empresa': u.empresa.nombre if u.empresa else 'N/A',
@@ -3425,38 +3438,52 @@ def exportar_usuarios():
 def exportar_reservas():
     reservas = Reserva.query.all() if current_user.rol in ('admin', 'master') else Reserva.query.filter_by(usuario_id=current_user.id).all()
 
-    data = [{
-        'Usuario': r.usuario.username,
-        'Fecha de viaje': r.fecha_viaje,
-        'Producto': r.producto,
-        'Fecha de venta': r.fecha_venta,
-        'Modalidad de pago': r.modalidad_pago,
-        'Nombre de pasajero': r.nombre_pasajero,
-        'Teléfono de pasajero': r.telefono_pasajero,
-        'Mail Pasajero': r.mail_pasajero,
-        'Precio venta total': r.precio_venta_total,
-        'Hotel neto': r.hotel_neto,
-        'Vuelo neto': r.vuelo_neto,
-        'Traslado neto': r.traslado_neto,
-        'Seguro neto': r.seguro_neto,
-        'Circuito Neto': r.circuito_neto,
-        'Crucero Neto': r.crucero_neto,
-        'Excursion Neto': r.excursion_neto,
-        'Paquete Neto': r.paquete_neto,
-        'Ganancia Total': r.ganancia_total,
-        'Comisión Ejecutivo': r.comision_ejecutivo,
-        'Comisión Agencia': r.comision_agencia,
-        'Bonos': r.bonos,
-        'Comentarios': r.comentarios,
-        'Localizadores': r.localizadores,
-        'Nombre ejecutivo': r.nombre_ejecutivo,
-        'Correo ejecutivo': r.correo_ejecutivo,
-        'Destino': r.destino,  
-        'comentarios' : r.comentarios,  # Comentarios de la reserva      
-        'Estado de pago': r.estado_pago,           # Nuevo campo en exportación
-        'Venta cobrada': r.venta_cobrada,          # Nuevo campo en exportación
-        'Venta emitida': r.venta_emitida           # Nuevo campo en exportación
-    } for r in reservas]
+    data = []
+    for r in reservas:
+        row = {
+            'ID': r.id,
+            'Usuario ID': r.usuario_id,
+            'Usuario': r.usuario.username if r.usuario else '',
+            'Empresa ID': r.empresa_id,
+            'Empresa': r.empresa.nombre if hasattr(r, 'empresa') and r.empresa else '',
+            'Fecha de viaje': r.fecha_viaje,
+            'Fecha fin viaje': r.fecha_fin_viaje,
+            'Fecha de venta': r.fecha_venta,
+            'Producto': r.producto,
+            'Modalidad de pago': r.modalidad_pago,
+            'Nombre de pasajero': r.nombre_pasajero,
+            'Teléfono de pasajero': r.telefono_pasajero,
+            'Mail Pasajero': r.mail_pasajero,
+            'Precio venta total': r.precio_venta_total,
+            'Precio venta neto': r.precio_venta_neto,
+            'Hotel neto': r.hotel_neto,
+            'Vuelo neto': r.vuelo_neto,
+            'Traslado neto': r.traslado_neto,
+            'Seguro neto': r.seguro_neto,
+            'Circuito neto': r.circuito_neto,
+            'Crucero neto': r.crucero_neto,
+            'Excursion neto': r.excursion_neto,
+            'Paquete neto': r.paquete_neto,
+            'Ganancia total': r.ganancia_total,
+            'Comisión ejecutivo': r.comision_ejecutivo,
+            'Comisión agencia': r.comision_agencia,
+            'Bonos': r.bonos,
+            'Localizadores': r.localizadores,
+            'Nombre ejecutivo': r.nombre_ejecutivo,
+            'Correo ejecutivo': r.correo_ejecutivo,
+            'Destino': r.destino,
+            'Comentarios': r.comentarios,
+            'Comprobante venta': r.comprobante_venta,
+            'Estado de pago': r.estado_pago,
+            'Venta cobrada': r.venta_cobrada,
+            'Venta emitida': r.venta_emitida,
+            'Opinion': getattr(r, 'opinion', ''),
+            'Postventa': getattr(r, 'postventa', ''),
+            'Estado postventa': getattr(r, 'estado_postventa', ''),
+            'Experiencia': getattr(r, 'experiencia', ''),
+            'Seguimiento': getattr(r, 'seguimiento', ''),
+        }
+        data.append(row)
 
     df = pd.DataFrame(data)
     output = io.BytesIO()

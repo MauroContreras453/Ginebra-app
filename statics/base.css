@@ -316,11 +316,3 @@ footer {
 .icon-action.text-danger:hover {
     color: #c82333;
 }
-/* Asegúrate de tener Font Awesome o similar cargado en tu base.html */
-/* Botones de acción pequeños */
-.btn-sm, .btn.btn-sm, .btn-custom.btn-sm {
-    padding: 0.15rem 0.5rem;
-    font-size: 0.5rem;
-    line-height: 1.2;
-    border-radius: 0.2rem;
-}
