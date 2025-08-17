@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}Panel de Comisiones - Panel de Administración{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='control_gestion_clientes.css') }}">
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='scripts/update_opinion_postventa.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="mb-0">Postventa</h3>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="GET" class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label for="postventa" class="form-label">Filtrar por Postventa:</label>
+                    <select class="form-select" id="postventa" name="postventa">
+                        <option value="">Todas</option>
+                        <option value="si" {% if selected_postventa == 'si' %}selected{% endif %}>si</option>
+                        <option value="no" {% if selected_postventa == 'no' %}selected{% endif %}>no</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary me-2">Filtrar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabla de panel comisiones (similar a marketing) -->
+    <div class="card">
+        <div class="card-body">
+            {% if reservas %}
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover text-white align-middle">
+                    <thead>
+                        <tr>
+                            <th>Nombre Pasajero</th>
+                            <th>Destino</th>
+                            <th>Fecha Viaje</th>
+                            <th>Teléfono</th>
+                            <th>Mail Pasajero</th>
+                            <th>Estado Postventa</th>
+                            <th>Postventa</th>
+                            <th>Seguimiento</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for reserva in reservas %}
+                        <tr>
+                            <td data-label="Nombre Pasajero">{{ reserva.nombre_pasajero }}</td>
+                            <td data-label="Destino">{{ reserva.destino }}</td>
+                            <td data-label="Fecha Viaje">{{ reserva.fecha_viaje }}</td>
+                            <td data-label="Teléfono">{{ reserva.telefono_pasajero }}</td>
+                            <td data-label="Mail Pasajero">{{ reserva.mail_pasajero }}</td>
+                            <td data-label="Estado Postventa">
+                                <select class="form-select form-select-sm" name="estado_postventa_{{ reserva.id }}">
+                                    <option value="ok" {% if reserva.estado_postventa == 'ok' %}selected{% endif %}>ok</option>
+                                    <option value="not ok" {% if reserva.estado_postventa == 'not ok' %}selected{% endif %}>not ok</option>
+                                </select>
+                            </td>
+                            <td data-label="Postventa">
+                                <select class="form-select form-select-sm" name="postventa_{{ reserva.id }}">
+                                    <option value="si" {% if reserva.postventa == 'si' %}selected{% endif %}>si</option>
+                                    <option value="no" {% if reserva.postventa == 'no' %}selected{% endif %}>no</option>
+                                </select>
+                            </td>
+                            <td data-label="Seguimiento">
+                                <input type="text" class="form-control form-control-sm" name="seguimiento_{{ reserva.id }}" value="{{ reserva.seguimiento or '' }}">
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="8" class="text-center">
+                                No hay datos de postventa para los filtros seleccionados.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <h5>No hay datos disponibles</h5>
+                <p>No se encontraron datos de postventa para los filtros seleccionados.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

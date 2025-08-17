@@ -4,25 +4,27 @@
 document.addEventListener('DOMContentLoaded', function() {
     // Delegación para todos los selects de opinión y postventa
     document.body.addEventListener('change', function(e) {
-        if (e.target.matches('select[name^="opinion_"]') || e.target.matches('select[name^="postventa_"]')) {
+        if (
+            e.target.matches('select[name^="opinion_"]') ||
+            e.target.matches('select[name^="postventa_"]') ||
+            e.target.matches('select[name^="estado_postventa_"]')
+        ) {
             const select = e.target;
-            const [field, reservaId] = select.name.split('_');
+            const reservaId = select.name.split('_').pop();
             const row = select.closest('tr');
-            let opinion = null, postventa = null, experiencia = null;
+            let payload = { reserva_id: reservaId };
             if (row) {
                 const opinionSelect = row.querySelector('select[name^="opinion_"]');
+                if (opinionSelect) payload.opinion = opinionSelect.value;
                 const postventaSelect = row.querySelector('select[name^="postventa_"]');
+                if (postventaSelect) payload.postventa = postventaSelect.value;
                 const experienciaInput = row.querySelector('input[name^="experiencia_"]');
-                if (opinionSelect) opinion = opinionSelect.value;
-                if (postventaSelect) postventa = postventaSelect.value;
-                if (experienciaInput) experiencia = experienciaInput.value;
+                if (experienciaInput) payload.experiencia = experienciaInput.value;
+                const estadoPostventaSelect = row.querySelector('select[name^="estado_postventa_"]');
+                if (estadoPostventaSelect) payload.estado_postventa = estadoPostventaSelect.value;
+                const seguimientoInput = row.querySelector('input[name^="seguimiento_"]');
+                if (seguimientoInput) payload.seguimiento = seguimientoInput.value;
             }
-            const payload = {
-                reserva_id: reservaId,
-                opinion: opinion,
-                postventa: postventa,
-                experiencia: experiencia
-            };
             fetch('/api/update_reserva_opinion_postventa', {
                 method: 'POST',
                 headers: {
@@ -50,25 +52,25 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Guardar experiencia al perder foco
+    // Guardar experiencia o seguimiento al perder foco
     document.body.addEventListener('blur', function(e) {
-        if (e.target.matches('input[name^="experiencia_"]')) {
+        if (e.target.matches('input[name^="experiencia_"]') || e.target.matches('input[name^="seguimiento_"]')) {
             const input = e.target;
             const [field, reservaId] = input.name.split('_');
             const row = input.closest('tr');
-            let opinion = null, postventa = null, experiencia = input.value;
+            let payload = { reserva_id: reservaId };
             if (row) {
                 const opinionSelect = row.querySelector('select[name^="opinion_"]');
+                if (opinionSelect) payload.opinion = opinionSelect.value;
                 const postventaSelect = row.querySelector('select[name^="postventa_"]');
-                if (opinionSelect) opinion = opinionSelect.value;
-                if (postventaSelect) postventa = postventaSelect.value;
+                if (postventaSelect) payload.postventa = postventaSelect.value;
+                const experienciaInput = row.querySelector('input[name^="experiencia_"]');
+                if (experienciaInput) payload.experiencia = experienciaInput.value;
+                const estadoPostventaSelect = row.querySelector('select[name^="estado_postventa_"]');
+                if (estadoPostventaSelect) payload.estado_postventa = estadoPostventaSelect.value;
+                const seguimientoInput = row.querySelector('input[name^="seguimiento_"]');
+                if (seguimientoInput) payload.seguimiento = seguimientoInput.value;
             }
-            const payload = {
-                reserva_id: reservaId,
-                opinion: opinion,
-                postventa: postventa,
-                experiencia: experiencia
-            };
             fetch('/api/update_reserva_opinion_postventa', {
                 method: 'POST',
                 headers: {
