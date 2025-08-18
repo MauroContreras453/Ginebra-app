@@ -59,32 +59,32 @@
 
     <div class="row">
       <div class="col-md-4 mb-3">
-        <label for="precio_base" class="form-label">Precio Base</label>
-        <input type="number" step="0.01" class="form-control form-control-sm" id="precio_base" name="precio_base" 
-               value="{{ catalogo.precio_base if catalogo else '' }}" placeholder="0.00">
+        <label for="costo_base" class="form-label">Costo Base</label>
+        <input type="number" step="1" class="form-control form-control-sm" id="costo_base" name="costo_base" 
+               value="{{ catalogo.costo_base if catalogo else '' }}" placeholder="0.00">
       </div>
       <div class="col-md-4 mb-3">
-        <label for="precio_venta" class="form-label">Precio de Venta</label>
-        <input type="number" step="0.01" class="form-control form-control-sm" id="precio_venta" name="precio_venta" 
-               value="{{ catalogo.precio_venta if catalogo else '' }}" placeholder="0.00">
+        <label for="precio_venta_sugerido" class="form-label">Precio Sugerido</label>
+        <input type="number" step="1" class="form-control form-control-sm" id="precio_venta_sugerido" name="precio_venta_sugerido" 
+               value="{{ catalogo.precio_venta_sugerido if catalogo else '' }}" placeholder="0.00">
       </div>
       <div class="col-md-4 mb-3">
-        <label for="comision" class="form-label">Comisión (%)</label>
-        <input type="number" step="0.01" class="form-control form-control-sm" id="comision" name="comision" 
-               value="{{ catalogo.comision if catalogo else '' }}" placeholder="0.00">
+        <label for="comision_estimada" class="form-label">Comisión (%)</label>
+        <input type="number" step="1" class="form-control form-control-sm" id="comision_estimada" name="comision_estimada" 
+               value="{{ catalogo.comision_estimada if catalogo else '' }}" placeholder="0.00">
       </div>
     </div>
 
     <div class="row">
       <div class="col-md-6 mb-3">
-        <label for="fecha_vigencia_inicio" class="form-label">Vigencia Desde</label>
-        <input type="date" class="form-control form-control-sm" id="fecha_vigencia_inicio" name="fecha_vigencia_inicio" 
-               value="{{ catalogo.fecha_vigencia_inicio.strftime('%Y-%m-%d') if catalogo and catalogo.fecha_vigencia_inicio else '' }}">
+        <label for="fecha_inicio" class="form-label">Vigencia Desde</label>
+        <input type="date" class="form-control form-control-sm" id="fecha_inicio" name="fecha_inicio" 
+               value="{{ catalogo.fecha_inicio.strftime('%Y-%m-%d') if catalogo and catalogo.fecha_inicio else '' }}">
       </div>
       <div class="col-md-6 mb-3">
-        <label for="fecha_vigencia_fin" class="form-label">Vigencia Hasta</label>
-        <input type="date" class="form-control form-control-sm" id="fecha_vigencia_fin" name="fecha_vigencia_fin" 
-               value="{{ catalogo.fecha_vigencia_fin.strftime('%Y-%m-%d') if catalogo and catalogo.fecha_vigencia_fin else '' }}">
+        <label for="fecha_fin" class="form-label">Vigencia Hasta</label>
+        <input type="date" class="form-control form-control-sm" id="fecha_fin" name="fecha_fin" 
+               value="{{ catalogo.fecha_fin.strftime('%Y-%m-%d') if catalogo and catalogo.fecha_fin else '' }}">
       </div>
     </div>
 

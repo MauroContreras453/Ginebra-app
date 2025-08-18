@@ -19,6 +19,13 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+main {
+  flex: 1 0 auto;
 }
 
 a {
@@ -257,7 +264,7 @@ footer {
   color: var(--text-color);
   text-align: center;
   padding: 1.5rem 0;
-  margin-top: 2rem;
+  margin-top: auto;
   border-top: 1px solid var(--accent-color);
 }
 

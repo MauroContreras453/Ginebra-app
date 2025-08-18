@@ -2664,7 +2664,7 @@ def reservas_usuarios():
 # =====================
 @app.route('/proveedores')
 @login_required
-@rol_required('admin', 'master', 'controling')
+@rol_required('admin', 'master', 'controling', 'analista')
 @empresa_tiene_productos_required
 def proveedores():
     """Página para ver todos los proveedores"""
@@ -2679,7 +2679,7 @@ def proveedores():
 
 @app.route('/proveedores/nuevo', methods=['GET', 'POST'])
 @login_required
-@rol_required('admin', 'master', 'controling')
+@rol_required('admin', 'master', 'controling', 'analista')
 @empresa_tiene_productos_required
 def nuevo_proveedor():
     """Crear un nuevo proveedor"""
@@ -2741,7 +2741,7 @@ def nuevo_proveedor():
 
 @app.route('/proveedores/editar/<int:id>', methods=['GET', 'POST'])
 @login_required
-@rol_required('admin', 'master', 'controling')
+@rol_required('admin', 'master', 'controling', 'analista')
 @empresa_tiene_productos_required
 def editar_proveedor(id):
     """Editar un proveedor existente"""
@@ -2807,7 +2807,7 @@ def editar_proveedor(id):
 
 @app.route('/proveedores/eliminar/<int:id>', methods=['POST'])
 @login_required
-@rol_required('admin', 'master', 'controling')
+@rol_required('admin', 'master', 'controling', 'analista')
 @empresa_tiene_productos_required
 def eliminar_proveedor(id):
     """Eliminar un proveedor"""
@@ -2835,7 +2835,7 @@ def eliminar_proveedor(id):
 
 @app.route('/exportar_proveedores')
 @login_required
-@rol_required('admin', 'master', 'controling')
+@rol_required('admin', 'master', 'controling', 'analista')
 @empresa_tiene_productos_required
 def exportar_proveedores():
     """Exportar lista de proveedores a Excel"""
@@ -3365,6 +3365,8 @@ def exportar_catalogos():
 
 @app.route('/comprobante_contrato/<int:id>')
 @login_required
+@rol_required('admin', 'master', 'controling', 'analista')
+@empresa_tiene_productos_required
 def ver_comprobante_contrato(id):
     """Ver comprobante PDF de un contrato"""
     contrato = Contrato.query.get_or_404(id)
@@ -3386,6 +3388,8 @@ def ver_comprobante_contrato(id):
 
 @app.route('/comprobante_catalogo/<int:id>')
 @login_required
+@rol_required('admin', 'master', 'controling', 'analista')
+@empresa_tiene_productos_required
 def ver_comprobante_catalogo(id):
     """Ver comprobante PDF de un catálogo"""
     catalogo = Catalogo.query.get_or_404(id)

@@ -55,6 +55,12 @@
                 placeholder="Descripción del contrato">{{ contrato.descripcion if contrato else '' }}</textarea>
     </div>
 
+    <div class="mb-3">
+      <label for="condiciones" class="form-label">Condiciones Comerciales</label>
+      <textarea class="form-control form-control-sm" id="condiciones" name="condiciones" rows="3" 
+                placeholder="Condiciones comerciales del contrato">{{ contrato.condiciones if contrato else '' }}</textarea>
+    </div>
+
     <div class="row">
       <div class="col-md-6 mb-3">
         <label for="fecha_inicio" class="form-label">Fecha de Inicio</label>
