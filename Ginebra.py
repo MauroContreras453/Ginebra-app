@@ -21,7 +21,14 @@ from xhtml2pdf import pisa
 app = Flask(__name__, static_folder='statics')
 app.secret_key = os.getenv('SECRET_KEY', 'clave_secreta_segura')
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///' + os.path.join(basedir, 'usuarios.db'))
+
+# Configuración de base de datos (compatible con Render PostgreSQL)
+database_url = os.getenv('DATABASE_URL', 'sqlite:///' + os.path.join(basedir, 'usuarios.db'))
+# Render usa 'postgres://' pero SQLAlchemy necesita 'postgresql://'
+if database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = os.path.join(basedir, 'comprobantes')
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -251,8 +258,19 @@ def load_user(user_id):
 
 @app.context_processor
 def inject_global_functions():
-    """Hace funciones disponibles en todas las plantillas"""
-    return dict(ruta_inicio_por_rol=ruta_inicio_por_rol)
+    """Hace funciones y variables disponibles en todas las plantillas"""
+    empresa_seleccionada = None
+    if current_user.is_authenticated:
+        if current_user.rol in ['master', 'admin']:
+            empresa_id = session.get('empresa_id_seleccionada')
+            if empresa_id:
+                empresa_seleccionada = Empresa.query.get(empresa_id)
+        elif current_user.rol in ['controling', 'analista', 'ejecutivo']:
+            empresa_seleccionada = current_user.empresa
+    return dict(
+        ruta_inicio_por_rol=ruta_inicio_por_rol,
+        empresa_seleccionada=empresa_seleccionada
+    )
 
 def rol_required(*roles):
     def decorator(f):
@@ -317,16 +335,6 @@ def puede_crear_usuario(rol_actual, rol_nuevo):
     return jerarquia.index(rol_actual) < jerarquia.index(rol_nuevo)
 
 def puede_asignar_empresa(usuario_actual, empresa_id_objetivo):
-    """
-    Verifica si el usuario actual puede asignar una empresa específica a un usuario.
-    
-    Args:
-        usuario_actual: El usuario que está realizando la acción
-        empresa_id_objetivo: ID de la empresa que se quiere asignar (puede ser None)
-    
-    Returns:
-        bool: True si puede asignar la empresa, False si no
-    """
     # Master y admin pueden asignar cualquier empresa
     if usuario_actual.rol in ['master', 'admin']:
         return True
@@ -1219,7 +1227,7 @@ def eliminar_usuario(id):
 def nueva_empresa():
     if request.method == 'POST':
         nombre = request.form['nombre']
-        logo = request.fotm['logo']
+        logo = request.form['logo']
         tiene_gestion = request.form['tiene_gestion']
         tiene_productos = request.form['tiene_productos']
         representante = request.form['representante']
@@ -3654,4 +3662,5 @@ def exportar_reservas_usuario():
     )
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    debug_mode = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
+    app.run(debug=debug_mode)

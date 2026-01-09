@@ -53,8 +53,8 @@
                 {% endif %}
 
                 <!-- GESTIÓN -->
-                {% if current_user.rol in ['admin', 'master'] %}
-                    <!-- Admin y Master: Acceso completo a gestión -->
+                {% if current_user.rol in ['admin', 'master'] and (not empresa_seleccionada or empresa_seleccionada.tiene_gestion == 'si') %}
+                    <!-- Admin y Master: Acceso a gestión si no hay empresa seleccionada o si la empresa tiene gestión -->
                     <div class="dropdown">
                         <button class="btn btn-custom dropdown-toggle" type="button" data-bs-toggle="dropdown">
                             Gestión
@@ -152,8 +152,8 @@
                 {% endif %}
 
                 <!-- PRODUCTO -->
-                {% if current_user.rol in ['admin', 'master'] %}
-                    <!-- Admin y Master: Acceso completo a productos -->
+                {% if current_user.rol in ['admin', 'master'] and (not empresa_seleccionada or empresa_seleccionada.tiene_productos == 'si') %}
+                    <!-- Admin y Master: Acceso a productos si no hay empresa seleccionada o si la empresa tiene productos -->
                     <div class="dropdown">
                         <button class="btn btn-custom dropdown-toggle" type="button" data-bs-toggle="dropdown">
                             Producto

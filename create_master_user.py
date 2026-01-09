@@ -1,4 +1,3 @@
-import os
 from Ginebra import app, db, Usuario
 
 with app.app_context():

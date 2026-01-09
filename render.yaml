@@ -1,0 +1,24 @@
+databases:
+  - name: ginebra-db
+    databaseName: ginebra
+    user: ginebra_user
+    plan: free
+
+services:
+  - type: web
+    name: ginebra-app
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn Ginebra:app
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ginebra-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: FLASK_DEBUG
+        value: "False"
