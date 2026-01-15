@@ -180,7 +180,7 @@ class Reserva(db.Model):
     venta_emitida = db.Column(db.Enum(*VENTA_EMITIDA_OPTIONS, name='venta_emitida_options'), default='No Emitida')
     opinion = db.Column(db.Enum(*OPINION_OPTIONS, name='estado_opinion_viaje'), default='no')
     postventa = db.Column(db.Enum(*POSTVENTA_OPTIONS, name='estado_postventa_viaje'), default='no')
-    estado_postventa = db.Column(db.Enum(*ESTADO_POSTVENTA_OPTIONS, name='estado_postventa_viaje'), default='not ok')
+    estado_postventa = db.Column(db.Enum(*ESTADO_POSTVENTA_OPTIONS, name='estado_postventa_resultado'), default='not ok')
     experiencia = db.Column(db.Text, nullable=True)
     seguimiento = db.Column(db.Text, nullable=True)
     usuario = db.relationship('Usuario', backref=db.backref('reservas', lazy=True))
